@@ -10,6 +10,7 @@ use App\Models\VehicleHold;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Process\InvokedProcess;
 use Illuminate\Support\Facades\Process;
 use Tests\TestCase;
@@ -39,6 +40,26 @@ final class VehicleHoldConcurrencyTest extends TestCase
     private const COMPETITORS = 6;
 
     private const BARRIER_LEAD_SECONDS = 4;
+
+    /**
+     * Hand the next test class a clean database.
+     *
+     * This class truncates before each of its own tests, not after, and its
+     * child processes commit rows on their own connections. Because
+     * DatabaseTruncation and RefreshDatabase share the
+     * RefreshDatabaseState::$migrated flag, a RefreshDatabase class running
+     * afterwards would skip migrate:fresh and inherit those rows.
+     *
+     * Today this class happens to sort last and so gets away with it. That is
+     * a property of the alphabet, not of the design — one new test file could
+     * silently break ten others.
+     */
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        RefreshDatabaseState::$migrated = false;
+    }
 
     public function test_only_one_of_several_simultaneous_attempts_can_hold_a_vehicle(): void
     {

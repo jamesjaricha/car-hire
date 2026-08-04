@@ -10,7 +10,7 @@ Anything marked PLACEHOLDER is flagged in the `settings` table
 (`is_placeholder = true`) and will be listed in the admin panel, so this file
 and the running system cannot drift apart.
 
-Last reviewed: 2026-08-03 (end of Phase 1).
+Last reviewed: 2026-08-04 (end of Phase 2).
 
 ---
 
@@ -67,3 +67,34 @@ would be an exclusion constraint the database enforces regardless of application
 code. On MySQL it is a row lock taken inside `VehicleHoldService::place()`, which
 is correct only while that remains the sole writer to `vehicle_holds`. The
 concurrency test exists to keep it that way.
+
+**The database must run at READ COMMITTED.** Set in `config/database.php` and
+overridable by `DB_ISOLATION_LEVEL`. The booking engine is incorrect under
+InnoDB's `REPEATABLE READ` default — see ARCHITECTURE.md §1. Verify on the
+production connection after deploying; a managed host that pins the isolation
+level would reintroduce both failures silently.
+
+---
+
+## Requirements this build has created for later phases
+
+Recorded here so they are not rediscovered as bugs.
+
+**Short-notice bookings must say the vehicle is not guaranteed.** Spec §8.2
+places no hold when pickup is under four hours away — availability is
+first-come at the counter. The customer has a booking, not a car. The
+confirmation screen, email and SMS must all say so plainly, or someone drives to
+a branch expecting a vehicle that has gone. Due with the customer UI.
+
+**Checkout must never reveal whether an account exists.** `CustomerResolution
+Result::$anExistingRecordMatched` is server-side only. If the checkout renders
+a different screen, message or set of buttons depending on it, an attacker can
+enumerate which email addresses have accounts simply by starting checkouts. The
+sign-in and continue-as-guest options must be offered identically to everyone.
+Spec §1.4. Due with the customer UI.
+
+**KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
+KYC verified, balance settled and security deposit recorded. The latter two are
+enforced now; the first has nowhere to be read from until the admin panel
+exists. `TransitionContext::$kycVerified` is in place and the guard is written
+and commented out awaiting data. Must be switched on with the KYC workflow.

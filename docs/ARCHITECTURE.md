@@ -41,7 +41,7 @@ PostgreSQL could express this as an exclusion constraint over a time range —
 and the database would then refuse an overlapping row no matter what the
 application did. That is a structural guarantee.
 
-We are on MySQL, because production is 20i shared hosting. MySQL has no
+We are on MySQL, because production is shared hosting. MySQL has no
 equivalent. So our guarantee is **behavioural**: it holds exactly as long as
 every writer goes through `place()`. Three things defend that:
 
@@ -57,6 +57,34 @@ every writer goes through `place()`. Three things defend that:
 
 If the platform ever moves to PostgreSQL, replace the behavioural guarantee with
 the constraint and keep the test.
+
+### The isolation level is part of the mechanism
+
+The MySQL connection runs at **READ COMMITTED**, not InnoDB's `REPEATABLE READ`
+default. This is set in `config/database.php` and it is not a performance tweak
+— the booking engine is incorrect without it, in two separate ways. Both were
+observed in `BookingConcurrencyTest`, not theorised.
+
+**Stale reads.** Under `REPEATABLE READ` a transaction's snapshot is fixed at
+its *first* read. Creating a booking reads payment methods, settings, the
+vehicle class and the customer before it ever reaches the vehicle lock, so its
+view of `vehicle_holds` is already old. Blocking on the lock does not refresh
+it. The overlap check therefore consulted a view of the table from before the
+winning transaction committed, found nothing, and inserted a second hold over
+the same dates. Four of five racing processes did exactly this; only the unique
+index stopped them, and it would not have if the ranges had merely overlapped
+instead of matching exactly.
+
+**Gap locks.** `REPEATABLE READ` takes next-key locks on range scans. On a
+sparsely populated `vehicle_holds` those gaps span most of the index, so
+transactions working on entirely different vehicles lock one another out and
+deadlock when they insert. That failure is worst when the table is nearly
+empty — which is week one of go-live, not week fifty.
+
+**What this does not change:** two customers competing for the same vehicle are
+still serialised by the explicit `lockForUpdate()` on the vehicle row. That is
+unaffected by isolation level. "We relaxed the isolation level" reads like a
+weakening; here it is the opposite.
 
 ### Availability results are advisory
 

@@ -11,6 +11,7 @@ use App\Enums\InsurancePriceMode;
 use App\Enums\SettingKey;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Support\Money;
 use RuntimeException;
 
 /**
@@ -46,6 +47,11 @@ final class PricingService implements PricingServiceContract
         return $this->normalise($this->classOf($vehicle)->insurance_excess_amount);
     }
 
+    public function insuranceModeFor(Vehicle $vehicle): InsurancePriceMode
+    {
+        return $this->classOf($vehicle)->insurance_price_mode;
+    }
+
     public function turnaroundBufferMinutesFor(Vehicle $vehicle): int
     {
         $buffer = $this->classOf($vehicle)->turnaround_buffer_minutes;
@@ -62,11 +68,10 @@ final class PricingService implements PricingServiceContract
 
     public function hireTotal(Vehicle $vehicle, DateRange $range): string
     {
-        return $this->normalise(bcmul(
+        return Money::multiply(
             $this->dailyRateFor($vehicle),
-            (string) $range->chargeableDays(),
-            $this->scale(),
-        ));
+            $range->chargeableDays(),
+        );
     }
 
     public function insuranceTotal(Vehicle $vehicle, DateRange $range): string
@@ -76,17 +81,26 @@ final class PricingService implements PricingServiceContract
 
         return match ($class->insurance_price_mode) {
             InsurancePriceMode::Flat => $price,
-            InsurancePriceMode::PerDay => $this->normalise(
-                bcmul($price, (string) $range->chargeableDays(), $this->scale())
-            ),
+            InsurancePriceMode::PerDay => Money::multiply($price, $range->chargeableDays()),
         };
     }
 
+    /**
+     * The vehicle's class, resolved once per model instance.
+     *
+     * Building a single quote asks for the rate, the deposit, the excess, the
+     * insurance mode and the buffer — five calls. Without memoising, that is
+     * five queries per vehicle, so a twenty-vehicle search page would issue a
+     * hundred. The resolved class is cached onto the model as a normal Eloquent
+     * relation, which also means an eager-loaded one is used as-is.
+     */
     private function classOf(Vehicle $vehicle): VehicleClass
     {
-        $class = $vehicle->relationLoaded('vehicleClass')
-            ? $vehicle->vehicleClass
-            : $vehicle->vehicleClass()->first();
+        if (! $vehicle->relationLoaded('vehicleClass')) {
+            $vehicle->setRelation('vehicleClass', $vehicle->vehicleClass()->first());
+        }
+
+        $class = $vehicle->vehicleClass;
 
         if (! $class instanceof VehicleClass) {
             throw new RuntimeException(
@@ -100,17 +114,13 @@ final class PricingService implements PricingServiceContract
     /**
      * Bring a value to the configured scale before it is used or compared.
      *
-     * Values read back from SQL aggregates arrive unscaled ('300' not '300.00').
-     * Skipping this step yields arithmetic that is numerically right but fails
-     * exact string assertions, which is how it usually gets noticed — late.
+     * Delegates to Money so there is exactly one implementation of this in the
+     * codebase. Values read back from SQL arrive unscaled ('300' not '300.00'),
+     * and two slightly different normalisers is how that starts producing
+     * inconsistent answers.
      */
-    private function normalise(string|int|float|null $value): string
+    private function normalise(string|int|null $value): string
     {
-        return bcadd((string) ($value ?? '0'), '0', $this->scale());
-    }
-
-    private function scale(): int
-    {
-        return (int) config('carhire.money_scale', 2);
+        return Money::of($value);
     }
 }

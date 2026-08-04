@@ -55,6 +55,35 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+
+            /*
+             * READ COMMITTED, deliberately, in place of InnoDB's REPEATABLE
+             * READ default. The booking engine needs both of the things this
+             * buys, and neither is optional.
+             *
+             * 1. FRESH READS. Under REPEATABLE READ a transaction's snapshot is
+             *    fixed at its first read. Creating a booking reads payment
+             *    methods, settings, the vehicle class and the customer before
+             *    it ever locks the vehicle — so by the time it checks for
+             *    overlapping holds, its view of that table predates whoever
+             *    just won the race. It sees no conflict and double-books.
+             *
+             * 2. NO GAP LOCKS. REPEATABLE READ takes next-key locks on range
+             *    scans. On a sparsely populated vehicle_holds those gaps span
+             *    most of the index, so transactions working on completely
+             *    different vehicles lock each other out and deadlock on insert.
+             *    READ COMMITTED confines locking to matched rows.
+             *
+             * Serialisation between customers competing for one vehicle does
+             * NOT come from the isolation level — it comes from the explicit
+             * lockForUpdate() on the vehicle row in VehicleHoldService::place().
+             * That is unaffected by this setting.
+             *
+             * Both failures above were observed, not theorised, in
+             * BookingConcurrencyTest.
+             */
+            'isolation_level' => env('DB_ISOLATION_LEVEL', 'READ COMMITTED'),
+
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,

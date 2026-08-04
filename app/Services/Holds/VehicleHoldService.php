@@ -11,6 +11,7 @@ use App\Exceptions\VehicleNotAvailableException;
 use App\Models\Vehicle;
 use App\Models\VehicleHold;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -75,15 +76,46 @@ final class VehicleHoldService implements VehicleHoldServiceContract
             // the vehicle free, and the two would disagree.
             $this->releaseExpiredForVehicle($locked, $now);
 
-            // Step 3 — the overlap check, inside the lock. A check performed
-            // before the lock proves nothing at all.
+            // Step 3 — the overlap check, inside the lock and as a locking read.
+            //
+            // Correctness here rests on two things, and it is worth knowing
+            // which does what, because both were learned the hard way.
+            //
+            // The VEHICLE ROW LOCK above serialises everyone competing for this
+            // vehicle. That is what makes the check meaningful at all.
+            //
+            // READ COMMITTED (set on the connection in config/database.php)
+            // is what makes the check see reality. Under InnoDB's REPEATABLE
+            // READ default, this transaction's snapshot was fixed at its first
+            // read — long before it reached the vehicle lock, since creating a
+            // booking reads payment methods, settings, the vehicle class and
+            // the customer first. Waiting on the lock does not refresh that
+            // snapshot, so a plain SELECT would have consulted a view of
+            // vehicle_holds from before the winner committed, found nothing,
+            // and inserted a second hold over the same dates.
+            //
+            // The lockForUpdate() is then defence in depth: under REPEATABLE
+            // READ it would force a fresh read on its own, so the guarantee
+            // survives someone changing the isolation level back. Under READ
+            // COMMITTED it confines itself to matched rows and does not take
+            // the range-wide gap locks that made transactions on unrelated
+            // vehicles deadlock against each other.
+            //
+            // None of this is theoretical. Both failures were caught by
+            // BookingConcurrencyTest — the stale read first, where four of five
+            // processes were stopped only by the unique index, which would not
+            // have saved us had the ranges merely overlapped instead of
+            // matching exactly.
             $padded = $range->paddedBy($this->pricing->turnaroundBufferMinutesFor($locked));
 
             $conflict = VehicleHold::query()
                 ->where('vehicle_id', $locked->getKey())
                 ->stillClaiming($now)
                 ->overlapping($padded->start, $padded->end)
-                ->exists();
+                ->lockForUpdate()
+                ->limit(1)
+                ->get(['id'])
+                ->isNotEmpty();
 
             if ($conflict) {
                 throw VehicleNotAvailableException::rangeAlreadyHeld($locked, $range);
@@ -93,15 +125,25 @@ final class VehicleHoldService implements VehicleHoldServiceContract
             // (vehicle_id, start_at, end_at, is_active) is a second net that
             // catches an identical duplicate even if the lock were somehow
             // bypassed. It does not catch partial overlaps; only the lock does.
-            return VehicleHold::create([
-                'vehicle_id' => $locked->getKey(),
-                'booking_id' => $bookingId,
-                'start_at' => $range->start,
-                'end_at' => $range->end,
-                'expires_at' => $expiresAt,
-                'released_at' => null,
-                'is_active' => 1,
-            ]);
+            //
+            // If it does fire, that is a losing racer, not a system fault — so
+            // it is translated into the same domain exception the caller would
+            // have received from the check above. Letting a raw SQL error escape
+            // would surface to a customer as a 500 rather than "that vehicle has
+            // just gone, here are others like it".
+            try {
+                return VehicleHold::create([
+                    'vehicle_id' => $locked->getKey(),
+                    'booking_id' => $bookingId,
+                    'start_at' => $range->start,
+                    'end_at' => $range->end,
+                    'expires_at' => $expiresAt,
+                    'released_at' => null,
+                    'is_active' => 1,
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                throw VehicleNotAvailableException::rangeAlreadyHeld($locked, $range);
+            }
         }, attempts: 3);
     }
 
