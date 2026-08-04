@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Contracts;
 
 use App\DataTransferObjects\DateRange;
+use App\Enums\InsurancePriceMode;
 use App\Models\Vehicle;
 
 /**
@@ -25,6 +26,14 @@ interface PricingServiceContract
     public function securityDepositFor(Vehicle $vehicle): string;
 
     public function insuranceExcessFor(Vehicle $vehicle): string;
+
+    /**
+     * Whether this vehicle's damage waiver is charged per day or flat.
+     *
+     * Exposed here so callers never have to reach through the class relation
+     * themselves — vehicle class access stays in one place.
+     */
+    public function insuranceModeFor(Vehicle $vehicle): InsurancePriceMode;
 
     public function turnaroundBufferMinutesFor(Vehicle $vehicle): int;
 

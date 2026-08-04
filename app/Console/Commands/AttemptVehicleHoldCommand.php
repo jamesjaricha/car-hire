@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\WaitsForBarrier;
 use App\Contracts\VehicleHoldServiceContract;
 use App\DataTransferObjects\DateRange;
 use App\Exceptions\VehicleNotAvailableException;
@@ -28,6 +29,8 @@ use Illuminate\Console\Command;
  */
 final class AttemptVehicleHoldCommand extends Command
 {
+    use WaitsForBarrier;
+
     protected $signature = 'carhire:attempt-hold
                             {vehicle : Vehicle ID}
                             {start : Hire start, ISO-8601 UTC}
@@ -58,7 +61,7 @@ final class AttemptVehicleHoldCommand extends Command
         // spends a few hundred milliseconds booting Laravel, so the first one
         // can be finished before the last one has connected — and the test
         // would pass without any contention ever occurring.
-        $this->waitForBarrier();
+        $this->waitForBarrier($this->option('not-before'));
 
         try {
             $range = DateRange::of(
@@ -84,24 +87,5 @@ final class AttemptVehicleHoldCommand extends Command
         $this->line('HELD: '.$hold->getKey());
 
         return 0;
-    }
-
-    /**
-     * Sleep until the instant given by --not-before, if any.
-     */
-    private function waitForBarrier(): void
-    {
-        $notBefore = $this->option('not-before');
-
-        if (! is_string($notBefore) || $notBefore === '') {
-            return;
-        }
-
-        $targetMicros = (float) CarbonImmutable::parse($notBefore)->format('U.u');
-        $delayMicros = (int) (($targetMicros - microtime(true)) * 1_000_000);
-
-        if ($delayMicros > 0) {
-            usleep($delayMicros);
-        }
     }
 }

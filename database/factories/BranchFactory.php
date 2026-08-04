@@ -26,7 +26,7 @@ final class BranchFactory extends Factory
             'code' => Str::upper(Str::substr($city, 0, 3)).$this->faker->unique()->numerify('##'),
             'city' => $city,
             'address' => $this->faker->streetAddress(),
-            'phone_e164' => '+2609'.$this->faker->numerify('7######'),
+            'phone_e164' => '+2609'.$this->faker->numerify('7#######'),
             'opens_at' => '08:00:00',
             'closes_at' => '17:00:00',
             'after_hours_pickup' => false,

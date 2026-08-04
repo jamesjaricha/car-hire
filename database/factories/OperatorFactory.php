@@ -25,7 +25,7 @@ final class OperatorFactory extends Factory
             // suppress model events would otherwise leave this null.
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(4)),
             'contact_email' => $this->faker->companyEmail(),
-            'contact_phone_e164' => '+2609'.$this->faker->numerify('7######'),
+            'contact_phone_e164' => '+2609'.$this->faker->numerify('7#######'),
             'is_active' => true,
         ];
     }

@@ -63,6 +63,38 @@ child processes would not be able to see the vehicle the test creates.
 If it fails intermittently, raise `BARRIER_LEAD_SECONDS` before assuming the
 lock is broken; a slow machine may need longer to get six processes booted.
 
+### If you add another multi-process test
+
+Two things bit us, both worth knowing before you write the third one.
+
+**Clear the migration flag on teardown.**
+
+```php
+protected function tearDown(): void
+{
+    parent::tearDown();
+
+    RefreshDatabaseState::$migrated = false;
+}
+```
+
+`DatabaseTruncation` and `RefreshDatabase` share that one static. Whichever runs
+first sets it, after which `RefreshDatabase` skips `migrate:fresh` and merely
+opens a transaction — assuming a clean database. But truncation cleans up
+*before* each of its own tests, never after, and child processes commit real
+rows. Without this, every later test class inherits the leftovers. It cost 25
+mystifying failures across five unrelated classes, none of which had a bug.
+
+**Race the real call path, not the component.** The stale-read bug lived in
+`VehicleHoldService`, but the hold test never caught it — calling `place()`
+directly makes its lock the transaction's first read, so the snapshot is fresh.
+The bug only existed through `BookingCreationService`, which reads four other
+things first. Concurrency tests belong at the outermost transaction boundary.
+
+**Test the case your safety net cannot catch.** The unique index masked the same
+bug for identical date ranges. The test that mattered used *overlapping* ranges,
+where only correct locking helps.
+
 ---
 
 ## Code style

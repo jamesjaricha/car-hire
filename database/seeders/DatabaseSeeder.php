@@ -22,6 +22,7 @@ final class DatabaseSeeder extends Seeder
     {
         $this->call([
             SettingsSeeder::class,
+            PaymentMethodSeeder::class,
         ]);
 
         // Sample fleet for development only. Never seeded in production, where
