@@ -239,3 +239,52 @@ Eloquent model
 - Models are Eloquent and little else: relations, casts, scopes.
 - `declare(strict_types=1)` everywhere; classes are `final` unless there is a
   reason not to be.
+
+---
+
+## 10. Who may do what
+
+Specification §12 is a table of fifteen permissions against three roles. It is
+transcribed twice, on purpose: once as `StaffPermission` and `StaffRole`, and
+once by hand in `RolesAndPermissionsSeederTest`. The test does not derive its
+expectations from the enums, because a test that reads the code it is checking
+agrees with that code no matter what the code says.
+
+### The seeder is the authority, not the database
+
+Grants are applied with `syncPermissions()`. Re-running the seeder restores the
+§12 matrix exactly and revokes anything granted to those three roles by other
+means. The alternative — seeding additively — lets the permission set in a live
+database drift away from the reviewed matrix with nothing to notice, and the
+direction it drifts is always outward. An operator who needs a different
+combination gets a **new role**; they do not get an edited Counter Clerk.
+
+### Wildcards are off
+
+`payments.*` would be convenient and is exactly wrong here. §12 separates
+confirming cash from confirming a bank transfer because a counter clerk may do
+the first and not the second — verifying a transfer means reading a statement
+they cannot see. A wildcard erases that distinction silently.
+
+### Permissions are checked in the service, not only at the edge
+
+`hasPermissionTo()` is asserted inside the service that performs the action,
+and a policy holds the same matrix for the admin panel to reuse. Authorising
+only in a controller or a Filament page means the guarantee lasts exactly as
+long as nobody calls the service from a command, a job or a test — and the
+expiry sweep is already a command.
+
+Note that `hasPermissionTo()` throws when a permission is absent from the table
+rather than returning false. That is wanted: a missing permission row is a
+deployment fault, and a silent denial would be read as a role misconfiguration
+and sent to the wrong person to fix.
+
+### The permission cache and `WithoutModelEvents`
+
+`PermissionRegistrar` keeps its permissions in memory and reloads them only when
+told to, normally by model events. `DatabaseSeeder` suppresses model events for
+the whole run. Anything that seeds or checks permissions under that seeder must
+therefore not read through the registrar's cache — `RolesAndPermissionsSeeder`
+uses direct queries and passes model instances rather than names. The failure
+mode otherwise is a `PermissionDoesNotExist` for a permission that is visibly
+present in the table. See CHANGELOG.md, Phase 3.

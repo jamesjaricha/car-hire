@@ -10,7 +10,7 @@ Anything marked PLACEHOLDER is flagged in the `settings` table
 (`is_placeholder = true`) and will be listed in the admin panel, so this file
 and the running system cannot drift apart.
 
-Last reviewed: 2026-08-04 (end of Phase 2).
+Last reviewed: 2026-08-05 (Phase 3, roles and permissions).
 
 ---
 
@@ -29,7 +29,7 @@ Last reviewed: 2026-08-04 (end of Phase 2).
 | 9 | Fuel policy (full-to-full? charged shortfall rate?) | `settings.fuel_policy` | **PLACEHOLDER** `full_to_full` |
 | 10 | Mileage policy (unlimited? daily cap and excess rate?) | `settings.mileage_policy` | **PLACEHOLDER** `unlimited` |
 | 11 | Late return charge rate | `settings.late_return_hourly_charge` | **PLACEHOLDER** `0.00` |
-| 12 | Whether counter clerks may confirm cash, per branch | `settings.counter_clerk_may_confirm_cash` | **PLACEHOLDER** `false`; per-branch override due with roles |
+| 12 | Whether counter clerks may confirm cash, per branch | `settings.counter_clerk_may_confirm_cash` | **PLACEHOLDER** `false`, global. The role grant exists; the per-branch override is due with the roles UI — see below |
 
 ## Settled
 
@@ -92,6 +92,22 @@ a different screen, message or set of buttons depending on it, an attacker can
 enumerate which email addresses have accounts simply by starting checkouts. The
 sign-in and continue-as-guest options must be offered identically to everyone.
 Spec §1.4. Due with the customer UI.
+
+**Cash confirmation is gated globally, not per branch.** Spec §12 marks a
+counter clerk's cash confirmation as "Configurable per branch" and §15.12 makes
+the policy itself an open item. Today the clerk holds
+`payments.confirm-cash` and `PaymentConfirmationService` additionally consults
+one global setting, which defaults to false. That is the whole of the rule: a
+branch cannot yet differ from its neighbour. Implementing the override means a
+nullable `branches.counter_clerk_may_confirm_cash` inheriting the global default
+when null — deliberately not built yet, because the business has not decided
+whether it wants the distinction at all. Due with the roles UI.
+
+**Two §12 permissions were placed by judgement, not by specification.**
+`payments.edit-manual-payment` and `bookings.override-short-notice` appear in the
+§12 permission list but have no row in the §12 matrix. Both are currently
+granted to Branch Manager and above. Confirm with the operator; it is a one-line
+seeder change either way.
 
 **KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
 KYC verified, balance settled and security deposit recorded. The latter two are

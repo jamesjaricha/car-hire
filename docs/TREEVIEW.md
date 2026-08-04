@@ -6,7 +6,7 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: end of Phase 2, 2026-08-04.
+Last updated: Phase 3 in progress (roles and permissions landed), 2026-08-05.
 
 ```
 carhire/
@@ -56,6 +56,8 @@ carhire/
 │   │   ├── PaymentMethodCode.php             The six methods of spec §3.
 │   │   ├── PaymentMethodType.php             Type drives behaviour, not the name.
 │   │   ├── SettingKey.php                    Every operator-editable value.
+│   │   ├── StaffPermission.php               Spec §12, verbatim. 15 permissions.
+│   │   ├── StaffRole.php                     The §12 matrix as grants.
 │   │   ├── TransitionActor.php               customer | staff | system
 │   │   └── VehicleStatus.php                 available | maintenance | retired
 │   │
@@ -76,7 +78,8 @@ carhire/
 │   │   ├── Operator.php                      The multi-operator seam.
 │   │   ├── PaymentMethod.php                 Use isOfferable(), not `enabled`.
 │   │   ├── Setting.php
-│   │   ├── User.php                          Staff. Untouched framework model.
+│   │   ├── User.php                          Staff, never customers. Roles, branch
+│   │   │                                     and operator. Null branch = no counter.
 │   │   ├── Vehicle.php                       Rate columns are nullable OVERRIDES.
 │   │   ├── VehicleClass.php                  Carries the pricing.
 │   │   └── VehicleHold.php                   Only VehicleHoldService writes here.
@@ -112,8 +115,10 @@ carhire/
 ├── config/
 │   ├── carhire.php                            Timezone, currency, phone region,
 │   │                                          reference format, payment flags.
-│   └── database.php                           ⚠ READ COMMITTED is deliberate and
-│                                              load-bearing. See the comment.
+│   ├── database.php                           ⚠ READ COMMITTED is deliberate and
+│   │                                          load-bearing. See the comment.
+│   └── permission.php                         Written, not published. Teams and
+│                                              wildcards off, both by decision.
 │
 ├── database/
 │   ├── factories/                             One per model, with states.
@@ -125,10 +130,15 @@ carhire/
 │   │   ├── 2026_08_03_00000{8,9}_*            customers, payment_methods.
 │   │   └── 2026_08_04_00000{1..3}_*           booking_reference_counters, bookings,
 │   │                                          and the vehicle_holds foreign key.
+│   │   └── 2026_08_05_00000{1,2}_*            the five permission tables, and
+│   │                                          operator_id + branch_id on users.
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
 │       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
 │       ├── PaymentMethodSeeder.php            Spec §3 and §8.1 hold durations.
+│       ├── RolesAndPermissionsSeeder.php  ★   Spec §12. Authoritative — re-running
+│       │                                      it revokes off-matrix grants. Reads
+│       │                                      nothing through the permission cache.
 │       └── SettingsSeeder.php                 All §15 values; firstOrCreate.
 │
 ├── docs/                                      You are here.
@@ -153,13 +163,17 @@ carhire/
 │   │   ├── PaymentMethodServiceTest.php
 │   │   ├── PricingServiceTest.php
 │   │   ├── QuoteServiceTest.php
+│   │   ├── RolesAndPermissionsSeederTest.php  Transcribes the §12 matrix
+│   │   │                                      independently of the enum.
+│   │   ├── StaffUserTest.php                  Branch posting, roles, cash exemption.
 │   │   ├── VehicleHoldConcurrencyTest.php ★   Real processes racing one vehicle.
 │   │   └── VehicleHoldServiceTest.php
 │   ├── Unit/
 │   │   ├── BookingStateMachineTest.php        Transcribes §7.3 independently.
 │   │   ├── DateRangeTest.php
 │   │   ├── MoneyTest.php
-│   │   └── PhoneNormaliserTest.php
+│   │   ├── PhoneNormaliserTest.php
+│   │   └── StaffPermissionTest.php            Method → confirmation permission.
 │   └── TestCase.php
 │
 ├── .env.example
@@ -169,6 +183,8 @@ carhire/
 
 ## Not yet built
 
-Phases 3 to 6 of the guideline's build order: payment records and staff
-confirmation, the admin panel, the customer-facing UI, notifications, KYC upload
-and cross-border. See CHANGELOG.md for what exists.
+Phase 3 is under way. Roles and permissions exist; payment records, references,
+staff confirmation, the audit writer and the expiry job do not yet.
+
+Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
+notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.

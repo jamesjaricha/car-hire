@@ -23,6 +23,10 @@ final class DatabaseSeeder extends Seeder
         $this->call([
             SettingsSeeder::class,
             PaymentMethodSeeder::class,
+            // Forgets the permission cache itself at both ends, because
+            // WithoutModelEvents above suppresses the hooks that would
+            // otherwise do it. See the seeder's own note.
+            RolesAndPermissionsSeeder::class,
         ]);
 
         // Sample fleet for development only. Never seeded in production, where

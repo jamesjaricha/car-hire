@@ -5,6 +5,101 @@ developer guideline §3.
 
 ---
 
+## Phase 3 (in progress) — Roles and permissions · 2026-08-05
+
+The first slice of the payments phase. Permissions come before payment records
+because confirming a payment is permissioned by role *and* by method, so the
+roles have to exist before the confirmation service can be written against them.
+
+Nothing here takes money yet.
+
+### Added
+
+**Schema**
+- The five `spatie/laravel-permission` tables. The migration is adapted from the
+  package's stub rather than published: the timestamp has to sort after `users`,
+  and the teams branches are dead code here.
+- `users.operator_id` and `users.branch_id`, both nullable and both restricted
+  on delete. Null is meaningful in each case — a Super Admin belongs to no
+  branch — and a user whose `operator_id` silently became null would change
+  from an operator's employee to platform staff, which is why the delete is
+  refused rather than nulled.
+
+**Domain**
+- `StaffPermission` — all fifteen permissions of spec §12, values copied
+  verbatim so the enum can be read against the spec line for line. Carries
+  `toConfirm()`, mapping a payment method to the permission needed to confirm
+  it.
+- `StaffRole` — Counter Clerk, Branch Manager, Super Admin, with the §12 matrix
+  as grants.
+- `User` — roles, branch and operator. Customers are not users and never will
+  be; spec §1.4 makes guest checkout the default and most customers never have
+  a password.
+- `RolesAndPermissionsSeeder` — idempotent, and authoritative for those three
+  roles.
+
+**Config**
+- `config/permission.php`, written into the project rather than published, so
+  the choices are reviewable. Teams off (the multi-operator seam is
+  `operator_id`, not this package's feature). Wildcards off — §12 distinguishes
+  confirming cash from confirming a transfer precisely because a clerk may do
+  one and not the other, and `payments.*` is how that distinction gets lost.
+  Permission and role names are kept out of exception messages.
+
+**Tests** — 209 passing, up from 187.
+
+### A bug the WithoutModelEvents test caught
+
+The regression test written for the trap failed on first run, which is the
+whole reason it exists.
+
+`PermissionRegistrar` holds its permission collection in memory and reloads it
+only when told to — normally by model events on `Permission` and `Role`.
+`DatabaseSeeder` runs with `WithoutModelEvents`, which suppresses exactly those
+events. So the first `Permission::findOrCreate()` loaded the collection while
+the table was still empty, and because an empty collection is still a truthy
+object the registrar never reloaded it. All fifteen permissions were created
+against that stale view, and the first `syncPermissions()` then threw
+`PermissionDoesNotExist` for a permission sitting in the table.
+
+On a freshly deployed server this would have looked like staff being unable to
+confirm payments, with the permissions plainly visible in the database.
+
+Fixed by removing the seeder's dependence on that cache altogether: every read
+is a direct query, and grants are passed to `syncPermissions()` as model
+instances, which `collectPermissions()` returns untouched instead of resolving
+by name. Flushing the cache between the two loops would also have worked, but
+only until someone added a third loop.
+
+### Decisions
+
+- **The seeder is authoritative for the three seeded roles.** Grants are synced,
+  not added, so re-running it restores the §12 matrix exactly and revokes
+  anything granted to those roles by hand. An operator who needs a different
+  combination gets a new role, not an edited Counter Clerk. The alternative —
+  additive seeding — lets the live permission set drift away from the reviewed
+  matrix with nothing noticing. There is a test for the revocation.
+- **`payments.edit-manual-payment` and `bookings.override-short-notice` sit at
+  Branch Manager and above.** Both are in the §12 permission list but neither
+  has a row in the §12 matrix, so the specification does not say who holds them.
+  Each is a correction to or an exception from the automatic path, the same
+  shape as extending a deadline, which the matrix does place at Branch Manager.
+  Recorded in `StaffRole::permissions()`; a seeder change moves either.
+- **Counter clerks hold `payments.confirm-cash`, gated at the service.** §12
+  marks it "Configurable per branch", so the grant is necessary but not
+  sufficient — `PaymentConfirmationService` will also consult the
+  `counter_clerk_may_confirm_cash` setting. Branch Managers and above are not
+  subject to that gate. The per-branch override itself is deferred to the roles
+  UI; see OPEN-ITEMS.md item 12.
+
+### Known gaps
+
+- Nothing enforces these permissions yet. `PaymentConfirmationService` and
+  `PaymentPolicy` arrive with the payment records they guard.
+- The per-branch cash confirmation override is still a single global setting.
+
+---
+
 ## Phase 2 — Booking engine · 2026-08-04
 
 Basket, quote, customers, payment methods, deadlines, the state machine and
