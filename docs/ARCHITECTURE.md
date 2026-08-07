@@ -288,3 +288,93 @@ therefore not read through the registrar's cache — `RolesAndPermissionsSeeder`
 uses direct queries and passes model instances rather than names. The failure
 mode otherwise is a `PermissionDoesNotExist` for a permission that is visibly
 present in the table. See CHANGELOG.md, Phase 3.
+
+---
+
+## 11. Money that has arrived, and money that is expected
+
+### Confirming a payment is an INSERT, not an UPDATE
+
+Spec §12 requires that duplicate confirmation of a payment be *structurally*
+impossible rather than merely discouraged, and the developer guideline names the
+cause it has in mind: a double-clicked confirm button.
+
+The obvious design is `confirmed_at` and `confirmed_by_user_id` on the payment
+row. It cannot meet that requirement. Confirming twice is then an UPDATE, and no
+index in any database refuses a second UPDATE. The strongest available guard is
+to read the row, see it is already confirmed and decline — an application check,
+and application checks lose races. Two staff members hitting confirm in the same
+instant both read "not yet confirmed", and both write.
+
+So confirmation is a row in `payment_confirmations`, with a **unique key on
+`payment_id`**. The second writer gets a constraint violation however the race
+falls out, and regardless of what any future caller forgets to check.
+
+`PaymentConfirmationService` still takes a lock and checks first. That is
+courtesy, not the mechanism: it produces "already confirmed by Mary at 14:32"
+rather than a raw SQL error. The index is the guarantee, and a two-process test
+proves it under real contention.
+
+This is the same argument as §1, reached the other way round. There, MySQL could
+not express the constraint we wanted, so the guarantee had to be behavioural and
+is defended by a test. Here it can, so it is structural — and where the database
+can hold the rule, it should.
+
+### Three levels of payment state, not one
+
+Spec §7.1 gives a single list of payment states, but they sit at two different
+levels. `proof_submitted` describes one receipt. `partially_paid` describes a
+booking — an individual K500 cash payment is confirmed or it is not, and is
+never "partially paid".
+
+Modelled as one enum on the payment row, confirming a balance payment would have
+to reach back and rewrite the earlier deposit row from `partially_paid` to
+`paid_in_full`. A row's state would then depend on rows it knows nothing about,
+and settled history would acquire a second writer.
+
+So there are three:
+
+| | What it answers |
+|---|---|
+| `BookingStatus` (§7.2) | Where is the booking? |
+| `BookingPaymentStatus` (§7.1) | How much of the hire has been paid? |
+| `PaymentStatus` | What happened to this one receipt? |
+
+Spec §7 opens by saying booking states and payment states are separate entities
+that must not be merged. This is that instruction applied once more, one level
+further down. `BookingPaymentStatus` carries §7.1's values verbatim, so nothing
+in the specification is lost by the split.
+
+`BookingPaymentStatus` is **derived, never assigned**. It is recomputed from the
+sum of confirmed receipts in the same breath as `amount_paid` and `balance_due`,
+so the three cannot drift apart.
+
+### Expected, arrived, and the gap between them
+
+`payments.amount` is what actually arrived. `payments.expected_amount` is what
+was asked for when the receipt was raised. A shortfall is the difference.
+
+The booking's `balance_due` cannot stand in for `expected_amount`, because it
+moves as other payments are confirmed: the same short payment would look
+different depending on when the question was asked. Recording the expectation
+alongside the receipt freezes the comparison at the moment it was made.
+
+An unmatched receipt has no expectation and therefore cannot be short. It is not
+missing money; it is money nobody has attributed yet.
+
+### `amount_paid` is recomputed, never incremented
+
+Adding to a running total is wrong the first time anything is confirmed twice,
+corrected, or replayed — and it is wrong silently, because the number still
+looks plausible. The total is always the sum of the receipts that count, which
+can be recomputed from scratch at any time and checked against the till.
+
+Two mechanical traps live in that sum, both of which have cost time on previous
+projects:
+
+- Aggregates through a relation inherit its ordering, and MySQL rejects a
+  `SELECT SUM(...)` carrying an `ORDER BY` on a column outside the aggregate
+  (error 1140) where SQLite passes it silently. Call `->reorder()` first.
+- SQL returns `'1655'`, not `'1655.00'`. Normalise through `Money::of()` before
+  comparing or storing, or exact-string assertions fail in ways that look like
+  arithmetic bugs.

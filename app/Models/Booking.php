@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\DataTransferObjects\TransitionContext;
+use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentMethodCode;
 use App\Support\Money;
@@ -61,6 +62,7 @@ final class Booking extends Model
         'deposit_percentage',
         'amount_paid',
         'balance_due',
+        'payment_status',
         'security_deposit_amount',
         'security_deposit_collected_at',
         'security_deposit_returned_at',
@@ -86,6 +88,7 @@ final class Booking extends Model
     {
         return [
             'status' => BookingStatus::class,
+            'payment_status' => BookingPaymentStatus::class,
             'payment_method_code' => PaymentMethodCode::class,
 
             'pickup_at' => 'immutable_datetime',
@@ -161,6 +164,39 @@ final class Booking extends Model
     public function holds(): HasMany
     {
         return $this->hasMany(VehicleHold::class);
+    }
+
+    /**
+     * Every receipt raised against this booking, confirmed or not.
+     *
+     * Do not sum this to find what has been paid — most of these rows are
+     * expectations rather than money. Use `countedPayments()`, and read the
+     * ordering warning on it.
+     *
+     * @return HasMany<Payment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * The receipts whose money counts towards `amount_paid`.
+     *
+     * ⚠ Summing through a relation inherits its ordering, and MySQL refuses an
+     * aggregate SELECT carrying an ORDER BY on a column outside the aggregate
+     * (error 1140) where SQLite passes it silently. Always:
+     *
+     *     $booking->countedPayments()->reorder()->sum('amount')
+     *
+     * and normalise the result through Money::of() — SQL returns '300', not
+     * '300.00', and the difference fails every exact string assertion.
+     *
+     * @return HasMany<Payment, $this>
+     */
+    public function countedPayments(): HasMany
+    {
+        return $this->payments()->counted();
     }
 
     /**

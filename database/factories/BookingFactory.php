@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentMethodCode;
 use App\Models\Booking;
@@ -81,6 +82,7 @@ final class BookingFactory extends Factory
             'deposit_percentage' => 50,
             'amount_paid' => '0.00',
             'balance_due' => '2310.00',
+            'payment_status' => BookingPaymentStatus::AwaitingPayment,
 
             'security_deposit_amount' => '1500.00',
             'security_deposit_collected_at' => null,

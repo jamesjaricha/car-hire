@@ -6,7 +6,8 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: Phase 3 in progress (roles and permissions landed), 2026-08-05.
+Last updated: Phase 3 in progress (roles, permissions and payment records
+landed), 2026-08-05.
 
 ```
 carhire/
@@ -50,11 +51,15 @@ carhire/
 │   │   └── TransitionContext.php             The facts a state guard checks.
 │   │
 │   ├── Enums/
+│   │   ├── BookingPaymentStatus.php          Spec §7.1 verbatim. DERIVED — never
+│   │   │                                     assign it; recompute it.
 │   │   ├── BookingStatus.php                 Spec §7.2. `Basket` never persists.
 │   │   ├── CustomerResolutionOutcome.php
 │   │   ├── InsurancePriceMode.php            per_day | flat
 │   │   ├── PaymentMethodCode.php             The six methods of spec §3.
 │   │   ├── PaymentMethodType.php             Type drives behaviour, not the name.
+│   │   ├── PaymentStatus.php                 ONE receipt's lifecycle. Not §7.1 —
+│   │   │                                     see BookingPaymentStatus.
 │   │   ├── SettingKey.php                    Every operator-editable value.
 │   │   ├── StaffPermission.php               Spec §12, verbatim. 15 permissions.
 │   │   ├── StaffRole.php                     The §12 matrix as grants.
@@ -76,6 +81,10 @@ carhire/
 │   │   ├── Branch.php
 │   │   ├── Customer.php                      Duplicates are permitted by design.
 │   │   ├── Operator.php                      The multi-operator seam.
+│   │   ├── Payment.php                       One receipt. Null booking_id is the
+│   │   │                                     unmatched queue, by design.
+│   │   ├── PaymentConfirmation.php       ★   The unique key here is what makes
+│   │   │                                     double confirmation impossible.
 │   │   ├── PaymentMethod.php                 Use isOfferable(), not `enabled`.
 │   │   ├── Setting.php
 │   │   ├── User.php                          Staff, never customers. Roles, branch
@@ -130,8 +139,10 @@ carhire/
 │   │   ├── 2026_08_03_00000{8,9}_*            customers, payment_methods.
 │   │   └── 2026_08_04_00000{1..3}_*           booking_reference_counters, bookings,
 │   │                                          and the vehicle_holds foreign key.
-│   │   └── 2026_08_05_00000{1,2}_*            the five permission tables, and
-│   │                                          operator_id + branch_id on users.
+│   │   ├── 2026_08_05_00000{1,2}_*            the five permission tables, and
+│   │   │                                      operator_id + branch_id on users.
+│   │   └── 2026_08_05_00000{3..5}_*           bookings.payment_status, payments,
+│   │                                          payment_confirmations (unique key).
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
 │       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
@@ -161,6 +172,8 @@ carhire/
 │   │   ├── CustomerResolverTest.php           Spec §1.4 in full.
 │   │   ├── PaymentDeadlineCalculatorTest.php
 │   │   ├── PaymentMethodServiceTest.php
+│   │   ├── PaymentModelTest.php               Proves the double-confirmation
+│   │   │                                      constraint at the database.
 │   │   ├── PricingServiceTest.php
 │   │   ├── QuoteServiceTest.php
 │   │   ├── RolesAndPermissionsSeederTest.php  Transcribes the §12 matrix
@@ -169,9 +182,11 @@ carhire/
 │   │   ├── VehicleHoldConcurrencyTest.php ★   Real processes racing one vehicle.
 │   │   └── VehicleHoldServiceTest.php
 │   ├── Unit/
+│   │   ├── BookingPaymentStatusTest.php       Transcribes §7.1 independently.
 │   │   ├── BookingStateMachineTest.php        Transcribes §7.3 independently.
 │   │   ├── DateRangeTest.php
 │   │   ├── MoneyTest.php
+│   │   ├── PaymentStatusTest.php              What counts as money in hand.
 │   │   ├── PhoneNormaliserTest.php
 │   │   └── StaffPermissionTest.php            Method → confirmation permission.
 │   └── TestCase.php
@@ -183,8 +198,10 @@ carhire/
 
 ## Not yet built
 
-Phase 3 is under way. Roles and permissions exist; payment records, references,
-staff confirmation, the audit writer and the expiry job do not yet.
+Phase 3 is under way. Roles, permissions and the payment tables exist. Nothing
+writes to those tables yet: the reference generator, the audit writer, the
+recording and confirmation services and the expiry job are all still to come,
+as is the `refunds` table, which belongs with the Phase 4 approval workflow.
 
 Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
 notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.

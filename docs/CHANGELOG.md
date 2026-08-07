@@ -1,7 +1,93 @@
 # Changelog
 
 Newest first. Each entry covers one phase of the build order set out in the
-developer guideline §3.
+developer guideline §3, or one slice of a phase still in progress.
+
+---
+
+## Phase 3 (in progress) — Payment records and states · 2026-08-05
+
+The tables money will be recorded in, and the states it moves through. Still no
+service that writes to them.
+
+### Added
+
+**Schema**
+- `payments` — one receipt. `booking_id` is **nullable**, because the guideline
+  §5 warns that mobile money statements lag and that till payments often do not
+  carry the reference the customer was given. Money therefore arrives that
+  nobody can attribute yet, and it has to be recordable the moment it is seen —
+  otherwise it gets written on paper and is not in the system at all. A null
+  booking is the unmatched payments queue.
+- `payment_confirmations` — one row per payment, with a **unique key on
+  `payment_id`**.
+- `bookings.payment_status` — the §7.1 position, separate from `status` (§7.2).
+
+**Domain**
+- `PaymentStatus` — the lifecycle of one receipt.
+- `BookingPaymentStatus` — spec §7.1 verbatim, as a property of the booking.
+- `Payment`, `PaymentConfirmation`, with `Payment::hasShortfall()` and the
+  `counted`, `unmatched` and `outstanding` scopes.
+
+**Tests** — 234 passing, up from 209.
+
+### Decisions
+
+- **Spec §7.1's payment states are split in two.** As written they mix levels:
+  `proof_submitted` describes a receipt, `partially_paid` describes a booking.
+  An individual K500 cash payment is confirmed or it is not; it is never
+  partially paid. Merged, confirming a balance payment would have to reach back
+  and rewrite the earlier deposit row from `partially_paid` to `paid_in_full`,
+  making a row's status depend on rows it knows nothing about and adding a
+  second writer to settled history. Spec §7 opens by saying booking states and
+  payment states must not be merged; this applies the same principle one level
+  down. `BookingPaymentStatus` carries §7.1 verbatim so nothing is lost.
+
+- **Confirmation is a row in its own table, not two columns on `payments`.**
+  Spec §12 requires duplicate confirmation to be *structurally* impossible. With
+  `confirmed_at` on the payment, confirming twice is an UPDATE, and no index
+  refuses a second UPDATE — the best available guard is read-then-write, which
+  is exactly what loses a race when two staff click confirm in the same instant.
+  As an INSERT against a unique key, the database refuses the second writer
+  regardless of what any caller checks. The service still locks and checks first,
+  so the ordinary case reads "already confirmed by Mary at 14:32" instead of a
+  SQL error — but that is courtesy, and the index is the guarantee.
+
+- **`expected_amount` is stored per receipt, and is nullable.** A shortfall is
+  measured against what was asked for at the time. The booking's `balance_due`
+  cannot serve, because it moves as other payments are confirmed, so the same
+  short payment would look different depending on when the question was asked.
+  An unmatched receipt has no expectation, hence nullable — and it is therefore
+  never a shortfall, only money nobody has attributed.
+
+- **`RefundPending` counts towards `amount_paid`; `Refunded` does not.** A
+  refund approved but not yet disbursed means the operator is still holding the
+  cash. Counting it as gone would show the customer a balance they do not owe,
+  and could let the expiry sweep cancel their booking for non-payment while
+  their money sits in the till. Refunds are Phase 4, but the enum has to answer
+  this now.
+
+- **`payments` carries `operator_id`**, nullable, like every other core table.
+  ARCHITECTURE §8: the seam exists so that opening the platform to other
+  operators is not a migration across tables holding live data, and a table
+  holding money is the worst one to migrate late.
+
+### Fixed
+
+- `BookingCreationService` sets `payment_status` explicitly rather than leaving
+  it to the column default. `create()` does not read defaults back, so the
+  returned model would have carried no value at all — null in production, a
+  `MissingAttributeException` under strict mode. The same fault as the
+  `CustomerResolver` `needs_staff_review` bug in Phase 2. The test reads it off
+  the returned instance rather than re-querying, because a re-query would pass
+  either way.
+
+### Known gaps
+
+- Nothing writes to these tables yet. `PaymentRecordingService` and
+  `PaymentConfirmationService` are the next slices.
+- No `refunds` table. The refund *states* exist; the workflow, and the
+  two-person request-and-approve rule of spec §9.3, belong with Phase 4.
 
 ---
 

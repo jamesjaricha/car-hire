@@ -10,6 +10,7 @@ use App\DataTransferObjects\BookingRequest;
 use App\DataTransferObjects\CustomerDetails;
 use App\DataTransferObjects\DateRange;
 use App\DataTransferObjects\QuoteOptions;
+use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingStatus;
 use App\Enums\CustomerResolutionOutcome;
 use App\Enums\InsurancePriceMode;
@@ -108,6 +109,29 @@ final class BookingCreationServiceTest extends TestCase
         // The deposit is recorded as what they were told to send.
         $this->assertSame('1155.00', $result->booking->booking_deposit_amount);
         $this->assertSame('1155.00', $result->amountDueNow());
+    }
+
+    /**
+     * Read off the model the service returns, not from a re-query.
+     *
+     * `create()` does not read column defaults back, so a value left to the
+     * database default is absent from the returned instance — null in
+     * production, and a MissingAttributeException under strict mode. Phase 2
+     * shipped exactly that fault once already, in CustomerResolver.
+     */
+    public function test_the_returned_booking_carries_its_payment_status(): void
+    {
+        $result = $this->bookings->create($this->request());
+
+        $this->assertSame(
+            BookingPaymentStatus::AwaitingPayment,
+            $result->booking->payment_status,
+        );
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $result->booking->getKey(),
+            'payment_status' => 'awaiting_payment',
+        ]);
     }
 
     public function test_paying_in_full_changes_only_what_is_due_now(): void

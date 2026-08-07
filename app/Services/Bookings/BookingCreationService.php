@@ -13,6 +13,7 @@ use App\Contracts\QuoteServiceContract;
 use App\Contracts\VehicleHoldServiceContract;
 use App\DataTransferObjects\BookingCreationResult;
 use App\DataTransferObjects\BookingRequest;
+use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingStatus;
 use App\Exceptions\BookingNotPossibleException;
 use App\Models\Booking;
@@ -138,6 +139,14 @@ final class BookingCreationService implements BookingCreationServiceContract
                 // option the customer chose.
                 'amount_paid' => Money::ZERO,
                 'balance_due' => $quote->grandTotal,
+
+                // Set explicitly rather than left to the column default.
+                // create() does not read defaults back, so the returned model
+                // would carry no value at all — and under Eloquent strict mode
+                // reading it then throws, while in production it would simply
+                // be null. The same shape of fault as the CustomerResolver
+                // `needs_staff_review` bug in Phase 2.
+                'payment_status' => BookingPaymentStatus::AwaitingPayment,
 
                 'security_deposit_amount' => $quote->securityDepositAmount,
                 'insurance_excess_amount' => $quote->insuranceExcessAmount,
