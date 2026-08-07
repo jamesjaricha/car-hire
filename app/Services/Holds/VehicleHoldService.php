@@ -212,6 +212,41 @@ final class VehicleHoldService implements VehicleHoldServiceContract
         return $holds->last();
     }
 
+    /**
+     * Move this booking's holds out to a new payment deadline.
+     *
+     * The counterpart of extendToHireEnd(), for a booking that has NOT been
+     * paid for: staff are giving the customer longer, so the vehicle must stay
+     * claimed for exactly as long as the new promise lasts.
+     *
+     * Like its sibling, it never shortens — a hold already claiming the vehicle
+     * for longer keeps the later date. That matters because the two can both
+     * apply to one booking over its life, in either order, and neither should
+     * be able to undo the other.
+     */
+    public function extendToDeadline(Booking $booking, CarbonImmutable $deadlineAt): ?VehicleHold
+    {
+        $holds = VehicleHold::query()
+            ->where('booking_id', $booking->getKey())
+            ->whereNull('released_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($holds->isEmpty()) {
+            return null;
+        }
+
+        foreach ($holds as $hold) {
+            if ($hold->expires_at->greaterThanOrEqualTo($deadlineAt)) {
+                continue;
+            }
+
+            $hold->forceFill(['expires_at' => $deadlineAt])->save();
+        }
+
+        return $holds->last();
+    }
+
     public function releaseExpired(?CarbonImmutable $asOf = null): int
     {
         $asOf ??= CarbonImmutable::now();

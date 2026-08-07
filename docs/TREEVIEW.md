@@ -138,11 +138,15 @@ carhire/
 │   │   │   │   ├── BankTransferAdapter.php
 │   │   │   │   ├── MtnMomoAdapter.php             NOT a gateway. Spec §3.1.
 │   │   │   │   └── AirtelMoneyAdapter.php
+│   │   │   ├── CounterPaymentService.php          Money handed over in person:
+│   │   │   │                                      record + confirm, one txn.
 │   │   │   ├── PaymentAdapterResolver.php         Cards resolve to a refusal.
 │   │   │   ├── PaymentConfirmationService.php ★   Where money becomes real. The
 │   │   │   │                                      unique key is the guarantee,
 │   │   │   │                                      not the check inside it.
 │   │   │   ├── PaymentDeadlineCalculator.php      Spec §8.2, incl. short notice.
+│   │   │   ├── PaymentDeadlineExtensionService.php  Moves the deadline AND the
+│   │   │   │                                        hold. Never one alone.
 │   │   │   ├── PaymentMethodService.php           Refuses disabled methods server-side.
 │   │   │   ├── PaymentRecordingService.php    ★   Raises receipts. Touches the
 │   │   │   │                                      booking's totals never.

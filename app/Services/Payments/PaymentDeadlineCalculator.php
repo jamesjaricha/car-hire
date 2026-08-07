@@ -69,8 +69,11 @@ final class PaymentDeadlineCalculator implements PaymentDeadlineCalculatorContra
     /**
      * When to nudge the customer, once the configured share of their window
      * remains. Spec §8.4 puts the default at 25%.
+     *
+     * Public so that extending a deadline recalculates the reminder by this
+     * same rule rather than growing a second copy of it.
      */
-    private function reminderFor(CarbonImmutable $now, CarbonImmutable $deadline): ?CarbonImmutable
+    public function reminderFor(CarbonImmutable $now, CarbonImmutable $deadline): ?CarbonImmutable
     {
         $remainingPercentage = $this->settings->integer(
             SettingKey::HoldReminderRemainingPercentage,

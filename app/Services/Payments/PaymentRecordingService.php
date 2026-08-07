@@ -42,15 +42,30 @@ final class PaymentRecordingService implements PaymentRecordingServiceContract
         private readonly AuditLoggerContract $audit,
     ) {}
 
-    public function raiseForBooking(Booking $booking, PaymentMethod $method): Payment
-    {
-        return DB::transaction(function () use ($booking, $method): Payment {
+    public function raiseForBooking(
+        Booking $booking,
+        PaymentMethod $method,
+        ?string $expectedAmount = null,
+        ?User $recordedBy = null,
+    ): Payment {
+        // A staff member keying in a receipt needs the permission for it. The
+        // customer's own checkout does not, because no person is acting.
+        if ($recordedBy instanceof User) {
+            $this->assertMayRecordManually($recordedBy);
+        }
+
+        return DB::transaction(function () use ($booking, $method, $expectedAmount, $recordedBy): Payment {
             // What the customer was told to pay, frozen at the moment they were
             // told. The booking's balance_due will move as receipts are
             // confirmed; this must not, or a shortfall becomes a moving target.
-            $expected = $booking->pay_in_full
-                ? Money::of($booking->grand_total)
-                : Money::of($booking->booking_deposit_amount);
+            //
+            // Given explicitly when raising a receipt for a balance, where
+            // neither the deposit nor the full total is what is being asked for.
+            $expected = $expectedAmount !== null
+                ? Money::of($expectedAmount)
+                : ($booking->pay_in_full
+                    ? Money::of($booking->grand_total)
+                    : Money::of($booking->booking_deposit_amount));
 
             $payment = Payment::query()->create([
                 'booking_id' => $booking->getKey(),
@@ -63,7 +78,12 @@ final class PaymentRecordingService implements PaymentRecordingServiceContract
 
                 // "Deposit" here is the 50% part-payment of the hire, never the
                 // refundable cash security deposit taken at the counter.
-                'is_deposit' => ! $booking->pay_in_full,
+                //
+                // A receipt raised for an explicit amount is a balance or a
+                // correction, never the deposit — the deposit is the figure the
+                // customer chose at checkout, and that is the default branch
+                // above.
+                'is_deposit' => $expectedAmount === null && ! $booking->pay_in_full,
 
                 // Nothing has arrived. A receipt raised with its expected
                 // amount already in `amount` would look, to every later query,
@@ -77,23 +97,30 @@ final class PaymentRecordingService implements PaymentRecordingServiceContract
                 'proof_path' => null,
                 'proof_uploaded_at' => null,
 
-                // The customer's own checkout raised this. No staff member was
-                // involved, and claiming one would corrupt the audit trail.
-                'recorded_by_user_id' => null,
+                // Null when the customer's own checkout raised this. Claiming a
+                // staff member who was not involved would corrupt the trail,
+                // and so would omitting one who was.
+                'recorded_by_user_id' => $recordedBy?->getKey(),
                 'matched_by_user_id' => null,
                 'matched_at' => null,
             ]);
 
             $this->audit->record(new AuditEntry(
                 action: AuditAction::PaymentRecorded,
+                actor: $recordedBy,
                 booking: $booking,
                 entity: $payment,
                 statusAfter: PaymentStatus::AwaitingPayment,
                 amount: $expected,
                 paymentReference: $payment->payment_reference,
                 paymentMethod: $method->code,
-                notes: 'Payment instructions issued at checkout.',
-                metadata: ['is_deposit' => ! $booking->pay_in_full],
+                notes: $recordedBy instanceof User
+                    ? 'Receipt raised by staff.'
+                    : 'Payment instructions issued at checkout.',
+                metadata: [
+                    'is_deposit' => $expectedAmount === null && ! $booking->pay_in_full,
+                    'expected_amount_given_explicitly' => $expectedAmount !== null,
+                ],
             ));
 
             return $payment;

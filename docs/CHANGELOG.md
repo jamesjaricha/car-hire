@@ -5,6 +5,79 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — Deadline extension and counter payments · 2026-08-05
+
+The two service capabilities the stalled-bookings queue needs. No UI yet — this
+is the money-touching half, kept separate so it can be reviewed on its own.
+
+### Added
+
+- `PaymentDeadlineExtensionService` — spec §8.2 and §12
+  `payments.extend-deadline`.
+- `CounterPaymentService` — money handed over in person, recorded and confirmed
+  in one transaction.
+- `VehicleHoldService::extendToDeadline()`.
+- `PaymentDeadlineCalculator::reminderFor()` promoted from private to the
+  contract.
+
+**Tests** — 379 passing, up from 354.
+
+### Decisions
+
+- **Extending a deadline is a service, not a column update.** A deadline lives
+  in two places: `bookings.payment_deadline_at`, and the `expires_at` of the
+  hold keeping the vehicle off sale until then. Moving only the first gives the
+  customer another day and releases their car in the same breath — the same
+  failure as a confirmed booking losing its vehicle, reached by a different
+  route. Both move together, in one transaction. ARCHITECTURE §3 now lists all
+  three things that may move a hold's expiry and the rule they share.
+
+- **The reminder is recalculated rather than left alone.** A reminder still
+  pointing inside the old window has already passed and will never fire, so the
+  customer would get extra time and no nudge at all. `reminderFor()` became
+  public so the extension path uses the same rule that set it originally instead
+  of growing a second copy that drifts when the percentage setting changes.
+
+- **The service polices coherence, not generosity.** Spec §8.2 lets staff
+  "extend any deadline or approve an exception", so there is no cap on how far —
+  a manager who has spoken to the customer knows things the automatic rule does
+  not. What is refused: a deadline after the pickup it precedes (the customer
+  would collect a car before they were due to pay for it), a booking that never
+  had a deadline, one that has stopped waiting to be paid, and bringing a
+  deadline *forward* — shortening a promise already made is a cancellation
+  decision, and should not wear the name "extend".
+
+- **Counter payments are one call because the counter case is genuinely
+  different.** Online, a receipt is raised and confirmed hours apart by
+  different people, and the gap between them is where `proof_submitted` lives.
+  At a counter the staff member *is* the verification — they are holding the
+  cash. Making them raise a receipt and then separately confirm money they just
+  counted is theatre, and the kind that gets skipped.
+
+- **It is one call, not a shortcut.** `CounterPaymentService` calls the same two
+  services in the same order, so `payments.record-manual`, the method's own §12
+  confirmation permission, the §15.12 cash setting, both row locks and the
+  unique key on `payment_confirmations` all still apply. A counter clerk can
+  take cash and still cannot sign off a bank transfer that happened to arrive
+  while they were at the desk — there is a test for exactly that.
+
+- **The whole thing is one transaction.** A refused confirmation must not leave
+  a receipt behind: that would be money reading as unpaid which *cannot* be
+  confirmed later, because its reference is already spent.
+
+### Changed
+
+- `raiseForBooking()` takes an optional expected amount and an optional
+  recording staff member. A balance is neither the deposit nor the full total,
+  so the derived figure is wrong for it; and a counter payment is not the
+  customer's checkout, so recording it as though no person were involved would
+  put money in the trail with nobody accountable for it.
+- `is_deposit` is now false whenever an explicit expected amount is given. A
+  balance receipt is not a deposit, and the previous derivation —
+  `! $booking->pay_in_full` — would have called it one.
+
+---
+
 ## Phase 4 — Admin panel: the access gate · 2026-08-05
 
 Filament installed, and the front door locked before anything was put behind it.

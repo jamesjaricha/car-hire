@@ -29,4 +29,18 @@ interface PaymentDeadlineCalculatorContract
         CarbonImmutable $pickupAt,
         ?CarbonImmutable $now = null,
     ): PaymentWindow;
+
+    /**
+     * When to nudge a customer whose window runs from `$from` to `$deadline`.
+     *
+     * Public because a staff member extending a deadline needs the reminder
+     * recalculated by the same rule that set it in the first place. Left
+     * private, the extension path would have grown its own copy, and the two
+     * would have drifted the first time the percentage setting changed.
+     *
+     * Null when no useful reminder exists — the configured percentage is 0 or
+     * 100, or the window is too short for the reminder to land before the
+     * deadline it is reminding about.
+     */
+    public function reminderFor(CarbonImmutable $from, CarbonImmutable $deadline): ?CarbonImmutable;
 }

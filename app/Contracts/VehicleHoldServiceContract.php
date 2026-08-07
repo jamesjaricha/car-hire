@@ -54,6 +54,22 @@ interface VehicleHoldServiceContract
     public function extendToHireEnd(Booking $booking): ?VehicleHold;
 
     /**
+     * Move a booking's hold out to a new payment deadline.
+     *
+     * A deadline and the hold that backs it are one fact stored in two places.
+     * Extending the first without the second gives the customer more time while
+     * releasing their car — the same failure as a confirmed booking losing its
+     * vehicle, reached by a different route.
+     *
+     * Never shortens. A hold already claiming the vehicle for longer keeps its
+     * later date, so this can only ever add certainty.
+     *
+     * Returns null when the booking has no live hold, which for a short-notice
+     * booking is normal rather than an error.
+     */
+    public function extendToDeadline(Booking $booking, CarbonImmutable $deadlineAt): ?VehicleHold;
+
+    /**
      * Release every hold whose payment deadline has passed.
      *
      * Returns the number released. Runs on a schedule, and is also exposed as a

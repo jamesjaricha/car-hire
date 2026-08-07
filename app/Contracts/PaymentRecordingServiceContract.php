@@ -32,7 +32,25 @@ interface PaymentRecordingServiceContract
      * The expected amount comes from the booking: the full total or the
      * deposit, according to what the customer chose at checkout.
      */
-    public function raiseForBooking(Booking $booking, PaymentMethod $method): Payment;
+    /**
+     * @param  string|null  $expectedAmount  What is being asked for. Defaults to
+     *                                       the option the customer chose at
+     *                                       checkout — the deposit, or the full
+     *                                       total. Given explicitly when raising
+     *                                       a receipt for a balance, where
+     *                                       neither is the right figure.
+     * @param  User|null  $recordedBy  The staff member raising it, when a person
+     *                                 did. Null means the customer's own
+     *                                 checkout, which is not the same thing and
+     *                                 must not be recorded as though a member of
+     *                                 staff had been involved.
+     */
+    public function raiseForBooking(
+        Booking $booking,
+        PaymentMethod $method,
+        ?string $expectedAmount = null,
+        ?User $recordedBy = null,
+    ): Payment;
 
     /**
      * Write down money that arrived without anyone knowing whose it is.

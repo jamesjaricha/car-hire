@@ -145,6 +145,29 @@ in `pending_payment`, where the payment deadline is exactly the right expiry.
 already exists cannot create an overlap that was not already there, and the
 extension only ever moves it later.
 
+### Three things move `expires_at`, and none of them may act alone
+
+By Phase 4 there are three, and the rule they share is more important than any
+of them individually: **a hold's expiry is never changed without the reason for
+it changing too.**
+
+| Mover | Why | Moves to |
+|---|---|---|
+| `place()` | The booking is new and unpaid | The payment deadline |
+| `extendToHireEnd()` | The booking is now paid for | The end of the hire |
+| `extendToDeadline()` | Staff gave the customer longer | The new deadline |
+
+The third exists because a payment deadline is one fact stored in two places —
+`bookings.payment_deadline_at` and the `expires_at` backing it. A manager
+extending only the first hands the customer another day and simultaneously
+releases their car to the next person who searches for it. That is the same
+failure as a confirmed booking losing its vehicle, reached by a different route,
+which is why `PaymentDeadlineExtensionService` moves both inside one transaction
+rather than being an update statement on a column.
+
+Neither extension ever shortens. Both can apply to one booking over its life, in
+either order, and neither should be able to undo the other.
+
 ### Expiry
 
 A hold still lapses when its payment deadline passes, for bookings that never
