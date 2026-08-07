@@ -248,19 +248,21 @@ final class PaymentRecordingService implements PaymentRecordingServiceContract
     }
 
     /**
-     * Spec §12 has no permission named "record a payment".
+     * Spec §12 has no permission named "record a payment", so one was added.
      *
-     * The closest it offers is `payments.edit-manual-payment`, which covers
-     * keying money in by hand, and that is what this is. Recorded in
-     * OPEN-ITEMS.md as a judgement call for the operator to confirm rather than
-     * left as an undocumented assumption — the alternative readings are that
-     * any authenticated user may do it, which is worse, or that nobody may,
-     * which leaves the unmatched queue with no way to be filled.
+     * Guarding this with `payments.edit-manual-payment` — the nearest thing on
+     * the §12 list — forced a choice between two wrong answers: let counter
+     * clerks alter payments already recorded, or stop the people standing at
+     * the till from writing money down as it arrives. The operator chose
+     * neither, and `payments.record-manual` exists so that recording what
+     * arrived and changing what was already recorded are separate powers.
+     *
+     * Counter clerks hold it. They are the ones who see the money.
      */
     private function assertMayRecordManually(User $actor): void
     {
-        if (! $actor->hasPermissionTo(StaffPermission::PaymentsEditManualPayment)) {
-            throw StaffPermissionDeniedException::missing(StaffPermission::PaymentsEditManualPayment);
+        if (! $actor->hasPermissionTo(StaffPermission::PaymentsRecordManual)) {
+            throw StaffPermissionDeniedException::missing(StaffPermission::PaymentsRecordManual);
         }
     }
 }

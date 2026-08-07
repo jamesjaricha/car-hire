@@ -16,6 +16,11 @@ namespace App\Enums;
  * `Spatie\Permission\Models\Permission`, which is the stored row. This enum is
  * the vocabulary; that model is the record.
  *
+ * One case — `payments.record-manual` — is NOT in §12. It was added with the
+ * operator's agreement because §12 has no permission covering the act of
+ * writing down money that arrived, and the nearest one carried powers a counter
+ * clerk should not have. It is marked where it is declared.
+ *
  * Adding a case here is not enough on its own. It must also be granted to the
  * roles that should hold it in RolesAndPermissionsSeeder, and the seeder has a
  * test asserting that every case is accounted for.
@@ -28,6 +33,25 @@ enum StaffPermission: string
     case PaymentsConfirmCash = 'payments.confirm-cash';
     case PaymentsConfirmBankTransfer = 'payments.confirm-bank-transfer';
     case PaymentsConfirmMobileMoney = 'payments.confirm-mobile-money';
+    /**
+     * Write down money that arrived, and attribute it to a booking.
+     *
+     * NOT IN SPEC §12. Added deliberately, with the operator's agreement.
+     *
+     * §12 lists no permission for recording a payment at all. The nearest was
+     * `payments.edit-manual-payment`, and guarding recording with it forced a
+     * choice between two wrong answers: give counter clerks the power to alter
+     * payments already recorded, or stop the people actually standing at the
+     * till from writing down money as it arrives. The second is worse — a
+     * receipt that waits for a manager is a receipt written on a note beside
+     * the till, which is where money goes missing.
+     *
+     * Splitting them keeps "record what arrived" and "change what was already
+     * recorded" as separate powers, which is the distinction that matters when
+     * someone asks later who could have altered a figure.
+     */
+    case PaymentsRecordManual = 'payments.record-manual';
+
     case PaymentsEditManualPayment = 'payments.edit-manual-payment';
     case PaymentsExtendDeadline = 'payments.extend-deadline';
 
@@ -84,6 +108,7 @@ enum StaffPermission: string
             self::PaymentsConfirmCash => 'Confirm a cash payment',
             self::PaymentsConfirmBankTransfer => 'Confirm a bank transfer',
             self::PaymentsConfirmMobileMoney => 'Confirm a mobile money payment',
+            self::PaymentsRecordManual => 'Record a payment received',
             self::PaymentsEditManualPayment => 'Edit a manually recorded payment',
             self::PaymentsExtendDeadline => 'Extend a payment deadline',
             self::BookingsReassignVehicle => 'Reassign a booking to another vehicle',
@@ -105,6 +130,7 @@ enum StaffPermission: string
             self::PaymentsConfirmCash,
             self::PaymentsConfirmBankTransfer,
             self::PaymentsConfirmMobileMoney,
+            self::PaymentsRecordManual,
             self::PaymentsEditManualPayment,
             self::PaymentsExtendDeadline => 'payments',
 

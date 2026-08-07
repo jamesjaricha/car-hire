@@ -315,6 +315,26 @@ database drift away from the reviewed matrix with nothing to notice, and the
 direction it drifts is always outward. An operator who needs a different
 combination gets a **new role**; they do not get an edited Counter Clerk.
 
+### Where this departs from §12
+
+Three things in the permission model are not in the specification, and all three
+are marked in the code where they appear rather than only here.
+
+§12 lists `payments.edit-manual-payment` and `bookings.override-short-notice`
+without placing either in its matrix. The first sits at Branch Manager and above
+because it changes a figure somebody has already relied on; the second sits at
+the counter, because the clerk is the one facing a customer three hours before
+pickup and the override exists precisely to save that customer a wait.
+
+`payments.record-manual` is not in §12 at all. Writing down money that arrived
+has no permission in the specification, and the nearest one carried the power to
+alter payments already recorded. Recording and editing are different acts with
+different risks — one states what happened, the other revises it — so they have
+different permissions. Counter clerks hold the first and not the second.
+
+A specification gap filled by inference is still a gap. These are written down
+in three places on purpose: the enum, `OPEN-ITEMS.md`, and here.
+
 ### Wildcards are off
 
 `payments.*` would be convenient and is exactly wrong here. §12 separates

@@ -18,10 +18,15 @@ use Tests\TestCase;
  * Specification §12, verified against the database rather than against the enum
  * that produced it.
  *
- * The expected permission lists below are transcribed from the specification by
- * hand and deliberately NOT derived from StaffRole::permissions(). Deriving
- * them would make this file agree with the code no matter what the code said,
- * which is not a test. If §12 and the seeder disagree, one of these fails.
+ * The expected permission lists below are transcribed by hand and deliberately
+ * NOT derived from StaffRole::permissions(). Deriving them would make this file
+ * agree with the code no matter what the code said, which is not a test.
+ *
+ * They are §12 plus three decisions the specification does not make, all
+ * settled with the operator on 2026-08-05 and all marked where they appear:
+ * `payments.record-manual` (not in §12 at all), and the placement of
+ * `bookings.override-short-notice` and `payments.edit-manual-payment`, which
+ * §12 lists without saying who holds them.
  */
 final class RolesAndPermissionsSeederTest extends TestCase
 {
@@ -36,6 +41,12 @@ final class RolesAndPermissionsSeederTest extends TestCase
     private const COUNTER_CLERK = [
         'payments.view',
         'payments.confirm-cash',
+        // Not from §12. Settled with the operator 2026-08-05: the person at the
+        // till is the person who sees money arrive.
+        'payments.record-manual',
+        // §12 lists it but places it nowhere. Settled with the operator: the
+        // clerk is the one facing the customer three hours before pickup.
+        'bookings.override-short-notice',
         'kyc.verify',
         'security-deposit.collect',
         'security-deposit.refund',
@@ -58,6 +69,7 @@ final class RolesAndPermissionsSeederTest extends TestCase
         'payments.confirm-cash',
         'payments.confirm-bank-transfer',
         'payments.confirm-mobile-money',
+        'payments.record-manual',
         'payments.edit-manual-payment',
         'payments.extend-deadline',
         'bookings.reassign-vehicle',
@@ -81,6 +93,7 @@ final class RolesAndPermissionsSeederTest extends TestCase
             'payments.confirm-cash',
             'payments.confirm-bank-transfer',
             'payments.confirm-mobile-money',
+            'payments.record-manual',
             'payments.edit-manual-payment',
             'payments.extend-deadline',
             'bookings.reassign-vehicle',

@@ -33,15 +33,22 @@ enum StaffRole: string
     /**
      * What this role may do.
      *
-     * TWO JUDGEMENT CALLS, RECORDED HERE RATHER THAN BURIED
+     * WHERE THIS GOES BEYOND §12, AND WHY
      *
-     * `payments.edit-manual-payment` and `bookings.override-short-notice` are
-     * in the §12 permission list but have no row in the §12 permission matrix,
-     * so the specification does not say who holds them. Both are granted to
-     * Branch Manager and above, on the reasoning that each is a correction to
-     * or an exception from the automatic path — the same shape as extending a
-     * deadline, which the matrix does place at Branch Manager. If the operator
-     * wants either at the counter, it is a seeder change, not a redesign.
+     * Three decisions here are not in the specification. All were settled with
+     * the operator on 2026-08-05 rather than left as assumptions.
+     *
+     * `payments.edit-manual-payment` and `bookings.override-short-notice` are in
+     * the §12 permission list but have no row in the §12 matrix, so the
+     * specification never says who holds them. Editing a payment already
+     * recorded stays at Branch Manager and above — it changes a figure somebody
+     * relied on. Overriding the short-notice rule went the other way, to the
+     * counter: the clerk is the one facing a customer three hours before
+     * pickup, and making them fetch a manager is the friction the override
+     * exists to remove.
+     *
+     * `payments.record-manual` is not in §12 at all. See its declaration in
+     * StaffPermission for why it had to be invented rather than borrowed.
      *
      * THE CASH EXCEPTION
      *
@@ -61,6 +68,14 @@ enum StaffRole: string
                 StaffPermission::PaymentsView,
                 // Held, but gated by the setting. See the note above.
                 StaffPermission::PaymentsConfirmCash,
+                // The person at the till is the person who sees money arrive.
+                // Making them wait for a manager to write it down is how a
+                // receipt ends up on a note beside the till instead.
+                StaffPermission::PaymentsRecordManual,
+                // The clerk is the one facing a customer standing in front of
+                // them three hours before pickup. Sending them away to find a
+                // manager is the friction spec §8.2's override exists to avoid.
+                StaffPermission::BookingsOverrideShortNotice,
                 StaffPermission::KycVerify,
                 StaffPermission::SecurityDepositCollect,
                 StaffPermission::SecurityDepositRefund,
@@ -72,6 +87,7 @@ enum StaffRole: string
                 StaffPermission::PaymentsConfirmCash,
                 StaffPermission::PaymentsConfirmBankTransfer,
                 StaffPermission::PaymentsConfirmMobileMoney,
+                StaffPermission::PaymentsRecordManual,
                 StaffPermission::PaymentsEditManualPayment,
                 StaffPermission::PaymentsExtendDeadline,
                 StaffPermission::BookingsReassignVehicle,

@@ -59,6 +59,7 @@ final class StaffPermissionTest extends TestCase
             'payments.confirm-cash',
             'payments.confirm-bank-transfer',
             'payments.confirm-mobile-money',
+            'payments.record-manual',
             'payments.edit-manual-payment',
             'payments.extend-deadline',
             'bookings.reassign-vehicle',

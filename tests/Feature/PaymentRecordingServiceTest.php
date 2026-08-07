@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Contracts\PaymentRecordingServiceContract;
 use App\Enums\PaymentMethodCode;
 use App\Enums\PaymentStatus;
+use App\Enums\StaffPermission;
 use App\Enums\StaffRole;
 use App\Exceptions\PaymentNotRecordableException;
 use App\Exceptions\StaffPermissionDeniedException;
@@ -199,24 +200,53 @@ final class PaymentRecordingServiceTest extends TestCase
 
     // --- Refusals ---------------------------------------------------------
 
+    /**
+     * The person at the till is the person who sees money arrive. Making them
+     * wait for a manager to write it down is how a receipt ends up on a note
+     * beside the till instead of in the system.
+     *
+     * Guarded by `payments.record-manual`, which is not in spec §12 — see the
+     * note on its declaration for why it had to be invented rather than
+     * borrowed from `payments.edit-manual-payment`.
+     */
+    public function test_a_counter_clerk_may_record_money_that_arrived(): void
+    {
+        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+
+        $payment = $this->recording->recordUnmatchedReceipt($clerk, PaymentMethodCode::Cash, '100.00');
+
+        $this->assertSame('UP-00001', $payment->payment_reference);
+        $this->assertSame($clerk->getKey(), $payment->recorded_by_user_id);
+    }
+
+    /**
+     * Recording what arrived and altering what was already recorded are
+     * separate powers. A clerk holds the first and not the second, which is the
+     * whole reason the permission was split.
+     */
+    public function test_a_counter_clerk_still_cannot_edit_a_recorded_payment(): void
+    {
+        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+
+        $this->assertTrue($clerk->hasPermissionTo(StaffPermission::PaymentsRecordManual));
+        $this->assertFalse($clerk->hasPermissionTo(StaffPermission::PaymentsEditManualPayment));
+    }
+
     public function test_a_staff_member_without_the_permission_may_not_key_in_a_payment(): void
     {
-        // Spec §12 has no "record a payment" permission; the closest it offers
-        // is payments.edit-manual-payment, which counter clerks do not hold.
-        // Recorded in OPEN-ITEMS.md as a judgement call.
-        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+        $nobody = User::factory()->create();
 
         $this->expectException(StaffPermissionDeniedException::class);
 
-        $this->recording->recordUnmatchedReceipt($clerk, PaymentMethodCode::Cash, '100.00');
+        $this->recording->recordUnmatchedReceipt($nobody, PaymentMethodCode::Cash, '100.00');
     }
 
     public function test_a_refused_recording_writes_nothing(): void
     {
-        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+        $nobody = User::factory()->create();
 
         try {
-            $this->recording->recordUnmatchedReceipt($clerk, PaymentMethodCode::Cash, '100.00');
+            $this->recording->recordUnmatchedReceipt($nobody, PaymentMethodCode::Cash, '100.00');
             $this->fail('The recording should have been refused.');
         } catch (StaffPermissionDeniedException) {
             // Expected.
@@ -338,17 +368,32 @@ final class PaymentRecordingServiceTest extends TestCase
         $this->recording->matchToBooking($manager, $receipt->refresh(), $second);
     }
 
-    public function test_a_counter_clerk_may_not_attribute_a_receipt(): void
+    public function test_a_counter_clerk_may_attribute_a_receipt(): void
+    {
+        // Same permission as recording one: a clerk who can write the money
+        // down can say whose it is. Both are statements about what arrived,
+        // neither alters a figure anyone has relied on.
+        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+        $booking = Booking::factory()->create();
+
+        $receipt = $this->recording->recordUnmatchedReceipt($clerk, PaymentMethodCode::MtnMomo, '1155.00');
+        $matched = $this->recording->matchToBooking($clerk, $receipt, $booking);
+
+        $this->assertSame($booking->getKey(), $matched->booking_id);
+        $this->assertSame($clerk->getKey(), $matched->matched_by_user_id);
+    }
+
+    public function test_someone_with_no_role_may_not_attribute_a_receipt(): void
     {
         $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
-        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+        $nobody = User::factory()->create();
         $booking = Booking::factory()->create();
 
         $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
 
         $this->expectException(StaffPermissionDeniedException::class);
 
-        $this->recording->matchToBooking($clerk, $receipt, $booking);
+        $this->recording->matchToBooking($nobody, $receipt, $booking);
     }
 
     public function test_attributing_a_receipt_is_audited(): void

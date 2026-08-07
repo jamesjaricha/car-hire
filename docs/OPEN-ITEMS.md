@@ -10,7 +10,7 @@ Anything marked PLACEHOLDER is flagged in the `settings` table
 (`is_placeholder = true`) and will be listed in the admin panel, so this file
 and the running system cannot drift apart.
 
-Last reviewed: 2026-08-05 (Phase 3, roles and permissions).
+Last reviewed: 2026-08-05 (end of Phase 3).
 
 ---
 
@@ -103,23 +103,33 @@ nullable `branches.counter_clerk_may_confirm_cash` inheriting the global default
 when null — deliberately not built yet, because the business has not decided
 whether it wants the distinction at all. Due with the roles UI.
 
-**Three §12 permission decisions were made by judgement, not by specification.**
+**Three §12 permission decisions — SETTLED 2026-08-05.** Kept here because they
+are departures from the specification and a future reader should find the
+reasoning rather than rediscover the discrepancy.
 
-1. `payments.edit-manual-payment` and 2. `bookings.override-short-notice` appear
-in the §12 permission list but have no row in the §12 matrix, so the spec never
-says who holds them. Both are currently granted to Branch Manager and above,
-on the reasoning that each is a correction to or an exception from the automatic
-path — the same shape as extending a deadline, which the matrix does place
-there.
+1. `payments.edit-manual-payment` — §12 lists it without saying who holds it.
+   **Branch Manager and above.** It changes a figure somebody has already relied
+   on.
+2. `bookings.override-short-notice` — likewise unplaced by §12. **Counter Clerk
+   and above.** The clerk is the one facing a customer three hours before
+   pickup; making them fetch a manager is the friction the override exists to
+   remove.
+3. `payments.record-manual` — **not in §12 at all, added deliberately.** §12 has
+   no permission covering the act of writing down money that arrived. Guarding
+   it with `payments.edit-manual-payment` would have forced a choice between
+   letting clerks alter recorded payments or stopping the people at the till
+   from recording money as it arrives. Splitting it keeps "record what arrived"
+   and "change what was already recorded" as separate powers. **Counter Clerk
+   and above.**
 
-3. §12 has no permission for *recording* a payment at all. Keying money in by
-hand — the unmatched receipts queue — is guarded by
-`payments.edit-manual-payment`, which is the nearest thing on the list. The
-consequence is that **counter clerks cannot record an unattributed receipt**,
-only branch managers and above. If clerks are the people who will actually be
-watching the till, this is the wrong way round and should be changed.
-
-All three are one-line seeder changes. Confirm with the operator.
+**Part-paid bookings past their deadline have no screen.** The expiry sweep
+deliberately refuses to cancel a booking holding the customer's money — spec
+§8.4 assumes nothing was received, and spec §9.3 wants two people on any refund,
+neither of whom is a cron job. `Booking::scopeStalledAfterDeadline()` is the
+queue and `carhire:expire-bookings` prints its count on every run, but until the
+admin panel has a screen for it, that log line is the only thing that will tell
+anyone those bookings exist. Each one is holding money somebody paid. Due with
+the admin panel, and the highest priority of the queues listed here.
 
 **A confirmed hold is not released when the car comes back.** Confirming a
 payment extends the hold's `expires_at` to the end of the hire, which is what

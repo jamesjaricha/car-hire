@@ -5,7 +5,112 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
-## Phase 3 (in progress) — Payment confirmation · 2026-08-05
+## Phase 3 — Permission decisions settled · 2026-08-05
+
+The three §12 gaps this phase accumulated, resolved with the operator rather
+than left flagged. No schema change; a seeder change and one new permission.
+
+### Added
+
+- `payments.record-manual` — **not in spec §12.** §12 has no permission covering
+  the act of writing down money that arrived, and the nearest one,
+  `payments.edit-manual-payment`, carries the power to alter payments already
+  recorded. Guarding recording with it forced a choice between two wrong
+  answers: let counter clerks change recorded figures, or stop the people
+  standing at the till from writing money down as it arrives. The second is
+  worse — a receipt that waits for a manager is a receipt on a note beside the
+  till, which is where money goes missing. Splitting them keeps "record what
+  arrived" and "change what was already recorded" as separate powers, which is
+  the distinction that matters when somebody later asks who could have altered a
+  figure.
+
+### Changed
+
+- **Counter clerks may now record and attribute receipts.** They hold
+  `payments.record-manual`; they still do not hold
+  `payments.edit-manual-payment`.
+- **`bookings.override-short-notice` moved to Counter Clerk.** §12 lists it
+  without saying who holds it, and it had been placed at Branch Manager by
+  default. The clerk is the one facing a customer standing in front of them
+  three hours before pickup, and sending them away to find a manager is exactly
+  the friction spec §8.2's override exists to remove.
+- `payments.edit-manual-payment` stays at Branch Manager and above. It changes a
+  figure somebody has already relied on.
+
+OPEN-ITEMS.md now records these as settled decisions with their reasoning rather
+than as outstanding questions.
+
+---
+
+## Phase 3 — Expiry sweep · 2026-08-05
+
+The last slice. An unpaid booking now cancels itself.
+
+**Phase 3 is complete.** A booking can be taken, priced, held, paid for,
+confirmed and expired, and every consequential step of that is audited.
+338 tests passing, up from 187 at the end of Phase 2.
+
+### Added
+
+- `BookingExpiryService` and `carhire:expire-bookings`, scheduled every five
+  minutes in `routes/console.php`.
+- `ExpirySweepResult` — counts, not a void return. The guideline is explicit
+  that a dead expiry job is one of the ways this platform fails quietly, and a
+  run that reports its numbers can be watched.
+- `Booking::scopeStalledAfterDeadline()` — the queue of part-paid bookings the
+  sweep deliberately refuses to touch.
+
+### Decisions
+
+- **One transaction per booking, not one per sweep.** A single transaction
+  around the whole run would hold locks on every expiring booking until the last
+  one finished, block staff confirming any of them, and lose the entire run to
+  one bad row.
+
+- **Part-paid bookings are left for staff.** Spec §8.4 says a lapsed deadline
+  cancels the booking, and plainly assumes nothing was received — but a customer
+  can now confirm less than they chose to pay, which leaves the booking pending
+  and holding their money. Cancelling that unattended would strand real cash
+  against a cancelled booking with no refund record, and spec §9.3 wants two
+  people on any refund, neither of whom is a cron job. Confirmed with the
+  operator before building it.
+
+- **The candidate list is a list of suggestions.** Every condition is re-checked
+  under the booking's own lock. A staff member confirming at 14:59:59 and the
+  sweep running at 15:00:00 are the same booking touched twice a heartbeat
+  apart, and acting on the candidate query's answer would cancel a booking that
+  had just been paid for.
+
+- **Five minutes, not hourly.** A lapsed deadline is a claim on a vehicle. An
+  hourly sweep keeps a car off sale for up to an hour after the claim on it
+  ended, which on a small fleet is a booking lost for nothing.
+
+- **Not `runInBackground()`.** The sweep is short, and running it inline puts a
+  failure in the scheduler's own exit status where monitoring can see it. The
+  cron line in DEPLOYMENT.md logs to a file rather than `/dev/null` for the same
+  reason.
+
+### One test is deliberately labelled as weaker than it looks
+
+`test_a_booking_confirmed_before_the_sweep_is_not_a_candidate` proves the
+candidate query excludes an already-confirmed booking. It does **not** prove the
+re-check under the lock, because a single process cannot stage a confirmation
+committing after the candidate query has run and before the cancellation takes
+its lock. The limitation is written into the test rather than left for a green
+tick to imply coverage that is not there. Proving it wants a fourth
+multi-process harness; the three that exist each found a real bug, so that is
+not an idle suggestion.
+
+### Known gaps carried into Phase 4
+
+- Reminder notifications (spec §8.4, 25% of the window remaining) are not built.
+  Notifications are Phase 6.
+- The part-paid queue has no screen. Until it does, the command's warning line
+  is the only thing that will tell anyone those bookings exist.
+
+---
+
+## Phase 3 — Payment confirmation · 2026-08-05
 
 Money becomes real. A booking can now be paid for and confirmed.
 
@@ -100,7 +205,7 @@ ARCHITECTURE §3 is rewritten around it.
 
 ---
 
-## Phase 3 (in progress) — Payment adapters and recording · 2026-08-05
+## Phase 3 — Payment adapters and recording · 2026-08-05
 
 A booking now produces a real payment record. Nothing confirms one yet.
 
@@ -198,7 +303,7 @@ show it happened. There is a test on each side of that line.
 
 ---
 
-## Phase 3 (in progress) — Audit writing and payment references · 2026-08-05
+## Phase 3 — Audit writing and payment references · 2026-08-05
 
 The two things every remaining service in this phase depends on.
 
@@ -268,7 +373,7 @@ The two things every remaining service in this phase depends on.
 
 ---
 
-## Phase 3 (in progress) — Payment records and states · 2026-08-05
+## Phase 3 — Payment records and states · 2026-08-05
 
 The tables money will be recorded in, and the states it moves through. Still no
 service that writes to them.
@@ -354,7 +459,7 @@ service that writes to them.
 
 ---
 
-## Phase 3 (in progress) — Roles and permissions · 2026-08-05
+## Phase 3 — Roles and permissions · 2026-08-05
 
 The first slice of the payments phase. Permissions come before payment records
 because confirming a payment is permissioned by role *and* by method, so the
