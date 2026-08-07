@@ -367,7 +367,51 @@ present in the table. See CHANGELOG.md, Phase 3.
 
 ---
 
-## 11. Money that has arrived, and money that is expected
+## 11. The admin panel is not allowed to be a CRUD panel
+
+Filament's usual idiom is a resource per table, with create and edit forms that
+write straight to the model. **That idiom is incompatible with this codebase**,
+and the incompatibility is not stylistic.
+
+Three phases put every dangerous write behind a service. `place()` owns holds
+because it holds the lock. `PaymentConfirmationService` owns confirmations
+because the unique key behind it is what stops money being counted twice.
+`BookingStateMachine` owns statuses because it is the only thing that knows
+which moves §7.3 permits. `AuditLogger` owns the trail because §12 requires
+every entry to carry the same fields.
+
+A generated `BookingResource` with an editable `status` dropdown bypasses all
+four in one click, and nothing would fail — the row would simply be wrong.
+
+So:
+
+- **Bookings, payments and `audit_log` get read-only resources.** No create
+  form, no edit form. Every mutation is an explicit Filament Action that calls
+  the service and lets its domain exception surface as a notification.
+- **Only genuinely CRUD-shaped things get forms**: vehicles, classes, branches,
+  payment methods, settings, users and roles. Even these go through
+  `PricingService`-safe columns rather than raw rate edits.
+
+This is more work than `make:filament-resource`, and it is the reason Phase 4 is
+built rather than generated.
+
+### The panel gate is not the permission model
+
+`User::canAccessPanel()` asks one question: is this person staff at all. It
+fails closed on an unrecognised panel id and on a user holding no role the
+`StaffRole` enum knows about — a role created in the admin panel to group a few
+permissions is not a way in.
+
+What somebody may then *do* is decided per action by §12's permissions, which
+are enforced in the services. Filament's default is that authentication
+suffices; its own contract file warns that without `FilamentUser`, every
+authenticated user reaches the panel outside `local`. The gate exists so that
+"has a password" and "may see every payment in the business" are different
+statements.
+
+---
+
+## 12. Money that has arrived, and money that is expected
 
 ### Confirming a payment is an INSERT, not an UPDATE
 

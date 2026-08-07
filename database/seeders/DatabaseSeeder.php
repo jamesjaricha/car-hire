@@ -29,10 +29,16 @@ final class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
         ]);
 
-        // Sample fleet for development only. Never seeded in production, where
-        // the real fleet is entered through the admin panel.
+        // Development only. The fleet is sample data; the staff accounts have
+        // known passwords. Neither belongs anywhere but a local machine, and
+        // DemoStaffSeeder refuses to run elsewhere even if this guard is ever
+        // loosened. The fleet is seeded first so the staff can be posted to a
+        // real branch.
         if (app()->environment('local')) {
-            $this->call(DemoFleetSeeder::class);
+            $this->call([
+                DemoFleetSeeder::class,
+                DemoStaffSeeder::class,
+            ]);
         }
     }
 }

@@ -123,6 +123,35 @@ only thing that will tell anyone they exist.
 
 ---
 
+## Filament assets
+
+Filament publishes its own CSS, JS and fonts into `public/`. Those directories
+are **gitignored on purpose** — they are build output, they regenerate, and
+committing them means a conflict on every Filament update.
+
+They are republished automatically, because `filament:install` added this to
+`composer.json`:
+
+```json
+"post-autoload-dump": [
+    "@php artisan filament:upgrade"
+]
+```
+
+That runs during `composer install`, which step 4 of the release procedure below
+already does. **If a deploy ever skips `composer install`** — an rsync of a
+prebuilt tree, say — the panel will load with no styling and no icons, and the
+fix is:
+
+```bash
+php artisan filament:assets
+```
+
+Worth knowing the symptom, because an unstyled admin panel looks like a broken
+deploy rather than a missing publish step.
+
+---
+
 ## Release procedure
 
 Once live, treat the production database as sacred.

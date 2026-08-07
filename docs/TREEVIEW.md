@@ -6,7 +6,7 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: end of Phase 3, 2026-08-05.
+Last updated: Phase 4 in progress (Filament installed, access gate), 2026-08-05.
 
 ```
 carhire/
@@ -110,7 +110,10 @@ carhire/
 │   │   └── VehicleHold.php                   Only VehicleHoldService writes here.
 │   │
 │   ├── Providers/
-│   │   └── AppServiceProvider.php            Contract bindings; Eloquent strict mode.
+│   │   ├── AppServiceProvider.php            Contract bindings; Eloquent strict mode.
+│   │   └── Filament/
+│   │       └── AdminPanelProvider.php    ★   /admin. Read its docblock BEFORE
+│   │                                         adding any resource.
 │   │
 │   ├── Services/
 │   │   ├── Audit/AuditLogger.php              ★   Sole writer to audit_log.
@@ -183,6 +186,9 @@ carhire/
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
 │       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
+│       ├── DemoStaffSeeder.php                Local only, and throws elsewhere.
+│       │                                      One account per role, plus a
+│       │                                      roleless one that must be refused.
 │       ├── PaymentMethodSeeder.php            Spec §3 and §8.1 hold durations.
 │       ├── RolesAndPermissionsSeeder.php  ★   Spec §12. Authoritative — re-running
 │       │                                      it revokes off-matrix grants. Reads
@@ -200,6 +206,7 @@ carhire/
 │
 ├── tests/
 │   ├── Feature/
+│   │   ├── AdminPanelAccessTest.php           Who may open /admin at all.
 │   │   ├── AuditLogImmutabilityTest.php       Proves the DB trigger, not the model.
 │   │   ├── AuditLoggerTest.php                Every field §12 demands, in one
 │   │   │                                      entry.

@@ -6,6 +6,8 @@ namespace App\Models;
 
 use App\Enums\StaffRole;
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,7 +29,7 @@ use Spatie\Permission\Traits\HasRoles;
  */
 #[Fillable(['name', 'email', 'password', 'operator_id', 'branch_id'])]
 #[Hidden(['password', 'remember_token'])]
-final class User extends Authenticatable
+final class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
@@ -55,6 +57,35 @@ final class User extends Authenticatable
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Whether this person may open the staff panel at all.
+     *
+     * WHY THIS EXISTS, IN FILAMENT'S OWN WORDS
+     *
+     * Without the FilamentUser contract, "all authenticated users can access
+     * your panel when APP_ENV is not local". Authentication is not
+     * authorisation, and this application spent a whole phase establishing that
+     * — spec §12 grants permissions per action and per payment method, and a
+     * panel that lets anyone with a password read every booking and payment
+     * makes that work irrelevant.
+     *
+     * The bar here is only "is this person staff at all". What they may then DO
+     * is decided per action by the permissions, not by this method. This is the
+     * front door, not the whole building.
+     *
+     * Fails closed twice over: an unrecognised panel is refused, and a user
+     * holding no role we recognise is refused. `customers` are not `users`, so
+     * a customer record can never reach this in any case.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        if ($panel->getId() !== 'admin') {
+            return false;
+        }
+
+        return $this->staffRoles() !== [];
     }
 
     /**

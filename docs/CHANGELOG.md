@@ -5,6 +5,71 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — Admin panel: the access gate · 2026-08-05
+
+Filament installed, and the front door locked before anything was put behind it.
+No screens yet, deliberately.
+
+### Added
+
+- `filament/filament ^5.7`. Verified against Filament's own `composer.json`
+  rather than its marketing pages: both v4 and v5 accept
+  `illuminate/contracts ^11.28|^12.0|^13.0`, so the real choice was Livewire 4
+  (v5) against Livewire 3 (v4). With no Livewire code in the project there was
+  no migration cost either way, and Tailwind v4 and Vite were already in
+  `package.json`, so v5 is the generation this stack is already aligned with.
+- `AdminPanelProvider` at `/admin`.
+- `User::canAccessPanel()`, backed by the `FilamentUser` contract.
+- `DemoStaffSeeder` — one account per role, local only.
+- `AdminPanelAccessTest` — 8 tests, including two over HTTP.
+
+**Tests** — 354 passing, up from 346.
+
+### Decisions
+
+- **The panel is the first thing built, and it is a gate rather than a screen.**
+  Filament's own contract file warns that without `FilamentUser`, "all
+  authenticated users can access your panel when APP_ENV is not local".
+  Authentication is not authorisation, and Phase 3 spent its length
+  establishing that §12 grants permissions per action and per payment method. A
+  panel that showed every booking and payment to anyone holding a password
+  would have made that work beside the point.
+
+- **The gate asks only "are you staff".** What somebody may then do stays with
+  the per-action permissions. Front door, not the whole building. It fails
+  closed twice: an unrecognised panel id is refused, and so is a user holding no
+  role the enum recognises — so a role invented in the admin panel to group a
+  few permissions is not a way in.
+
+- **Bookings, payments and the audit log will get READ-ONLY resources.**
+  Recorded in the panel provider's docblock and in ARCHITECTURE §11 before any
+  resource exists, because the moment one is generated the default is a form
+  that writes straight to the model — and an editable `status` dropdown bypasses
+  `BookingStateMachine`, `VehicleHoldService`, `PaymentConfirmationService` and
+  `AuditLogger` in a single click. Every mutation will be an explicit action
+  calling the service.
+
+- **`FilamentInfoWidget` was removed from the dashboard.** It reports the
+  installed Filament version to anyone who reaches the panel, which is free
+  reconnaissance on something that handles payments.
+
+- **`DemoStaffSeeder` seeds a deliberately roleless account.** Signing in as
+  `nobody@carhire.test` should be refused, and seeding it makes that checkable
+  in a browser rather than only in a test. The seeder throws outside `local`
+  rather than trusting `DatabaseSeeder`'s guard, because it creates a super
+  admin with a known password.
+
+### Fixed during the slice
+
+- The panel was generated as `james` at `/james` — the install prompt took a
+  name rather than the panel id. Renamed to `AdminPanelProvider` at `/admin`
+  before anything was built on it, since a panel id ends up in auth redirects,
+  `Filament::getPanel()` lookups, tests and deployment notes. A test asserts
+  `/james` now 404s, so the rename cannot leave a second route quietly serving
+  the same panel.
+
+---
+
 ## Phase 3 — Pre-merge audit fixes · 2026-08-05
 
 Findings from a review of the payments work before merging to master. One of
