@@ -38,6 +38,20 @@ final class PaymentNotRecordableException extends DomainException
         );
     }
 
+    public static function bookingCannotAcceptPayment(
+        string $reference,
+        string $bookingReference,
+        string $status,
+    ): self {
+        return new self(sprintf(
+            'Payment [%s] cannot be attached to booking [%s]: it is %s. '
+            .'Leave the receipt in the unmatched queue, where it can still be traced.',
+            $reference,
+            $bookingReference,
+            lcfirst($status),
+        ));
+    }
+
     public static function methodCannotBeUsedManually(string $code): self
     {
         return new self(

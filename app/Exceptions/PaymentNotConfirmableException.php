@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Exceptions;
 
+use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
 use App\Models\PaymentConfirmation;
 use DomainException;
@@ -31,11 +32,32 @@ final class PaymentNotConfirmableException extends DomainException
             (string) config('carhire.display_timezone', 'Africa/Lusaka')
         )->format('j M Y H:i');
 
+        // Resolved once. This runs while a transaction holds row locks, so an
+        // avoidable second query here is a lock held for no reason.
+        $confirmedBy = $confirmation->confirmedBy()->first()?->name;
+
         return new self(sprintf(
             'Payment [%s] was already confirmed%s%s. Confirming it twice would count the same money twice.',
             $reference,
-            $confirmation->confirmedBy()->first()?->name === null ? '' : ' by '.$confirmation->confirmedBy()->first()->name,
+            $confirmedBy === null ? '' : ' by '.$confirmedBy,
             $when === null ? '' : ' on '.$when,
+        ));
+    }
+
+    /**
+     * The booking is cancelled, released or completed.
+     *
+     * Refused rather than absorbed. Taking money against a booking nobody will
+     * honour leaves the customer out of pocket with nothing in the system
+     * saying so.
+     */
+    public static function bookingCannotAcceptPayment(string $reference, BookingStatus $status): self
+    {
+        return new self(sprintf(
+            'Payment [%s] cannot be confirmed: the booking is %s. '
+            .'Taking money against it would leave the customer owed a refund that nothing has recorded.',
+            $reference,
+            lcfirst($status->label()),
         ));
     }
 

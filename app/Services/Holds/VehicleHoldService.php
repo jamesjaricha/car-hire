@@ -183,27 +183,33 @@ final class VehicleHoldService implements VehicleHoldServiceContract
      */
     public function extendToHireEnd(Booking $booking): ?VehicleHold
     {
-        $hold = VehicleHold::query()
+        // Every unreleased hold, not merely the newest. A booking should have
+        // one, but a reassignment that fails partway through could leave two —
+        // and extending only the newest would quietly let the other lapse,
+        // putting a vehicle that is still claimed back into search results.
+        $holds = VehicleHold::query()
             ->where('booking_id', $booking->getKey())
             ->whereNull('released_at')
-            ->orderByDesc('id')
-            ->first();
+            ->orderBy('id')
+            ->get();
 
-        if (! $hold instanceof VehicleHold) {
+        if ($holds->isEmpty()) {
             // Short-notice bookings never place one. Spec §8.2.
             return null;
         }
 
-        // Never shorten. A hire ending before the payment deadline — possible
-        // on a very late booking — must keep the later of the two, or
-        // confirming would hand the car back to the search results.
-        if ($hold->expires_at->greaterThanOrEqualTo($hold->end_at)) {
-            return $hold;
+        foreach ($holds as $hold) {
+            // Never shorten. A hire ending before the payment deadline —
+            // possible on a very late booking — must keep the later of the two,
+            // or confirming would hand the car back to the search results.
+            if ($hold->expires_at->greaterThanOrEqualTo($hold->end_at)) {
+                continue;
+            }
+
+            $hold->forceFill(['expires_at' => $hold->end_at])->save();
         }
 
-        $hold->forceFill(['expires_at' => $hold->end_at])->save();
-
-        return $hold;
+        return $holds->last();
     }
 
     public function releaseExpired(?CarbonImmutable $asOf = null): int

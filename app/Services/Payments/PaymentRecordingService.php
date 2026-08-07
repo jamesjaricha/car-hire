@@ -216,6 +216,19 @@ final class PaymentRecordingService implements PaymentRecordingServiceContract
                 throw PaymentNotRecordableException::confirmedPaymentCannotBeMoved($locked->payment_reference);
             }
 
+            // Refused here as well as at confirmation. Attaching money to a
+            // cancelled booking and only discovering at the confirm step that
+            // it cannot be taken leaves the receipt attributed to a booking
+            // nobody will honour — which is a worse place for it than the
+            // unmatched queue it came from.
+            if (! $lockedBooking->status->canAcceptPayment()) {
+                throw PaymentNotRecordableException::bookingCannotAcceptPayment(
+                    $locked->payment_reference,
+                    $lockedBooking->reference,
+                    $lockedBooking->status->label(),
+                );
+            }
+
             $locked->forceFill([
                 'booking_id' => $lockedBooking->getKey(),
                 'operator_id' => $lockedBooking->operator_id,

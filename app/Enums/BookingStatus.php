@@ -80,6 +80,33 @@ enum BookingStatus: string
         };
     }
 
+    /**
+     * Whether money may still be taken against this booking.
+     *
+     * A cancelled booking must refuse it. Matching a late receipt to a booking
+     * the sweep cancelled last night and confirming it would take the
+     * customer's money, recompute a balance nobody will ever collect, leave the
+     * booking cancelled, and tell no one a refund is owed. The money would only
+     * ever be found by somebody reading the payments table.
+     *
+     * `VehicleReleased` and `Completed` refuse it too: the balance had to be
+     * settled before the keys were handed over, so a payment arriving
+     * afterwards is a correction or an overpayment, and both are refund
+     * questions rather than something to absorb silently.
+     *
+     * `Confirmed` accepts it — that is how the balance is paid at the counter
+     * before release, which is the normal path for a 50% deposit booking.
+     */
+    public function canAcceptPayment(): bool
+    {
+        return match ($this) {
+            self::PendingPayment,
+            self::Confirmed,
+            self::AwaitingCrossBorder => true,
+            default => false,
+        };
+    }
+
     public function isCancellation(): bool
     {
         return match ($this) {

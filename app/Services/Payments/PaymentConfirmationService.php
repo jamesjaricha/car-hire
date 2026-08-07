@@ -126,6 +126,25 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
                 throw PaymentNotConfirmableException::statusForbidsIt($locked->payment_reference, $locked->status);
             }
 
+            // The booking must still be one that money means something against.
+            // A receipt matched to a booking the sweep cancelled last night can
+            // otherwise be confirmed: the balance would be recomputed, the
+            // booking would stay cancelled, and nothing would say a refund is
+            // owed. The customer's money would exist only in the payments table.
+            if (! $booking->status->canAcceptPayment()) {
+                throw PaymentNotConfirmableException::bookingCannotAcceptPayment(
+                    $locked->payment_reference,
+                    $booking->status,
+                );
+            }
+
+            // Re-asserted against the row as it actually is. The check before
+            // the transaction used the caller's copy, which is the right place
+            // to refuse cheaply — but the permission depends on the payment
+            // method, and this service must not be the thing that assumes no
+            // future code path can change one.
+            $this->assertMayConfirm($actor, $locked);
+
             // A locking read, and `limit(1)->get()` rather than `exists()`:
             // Laravel compiles exists() into `select exists(<subquery>)`, and
             // a FOR UPDATE inside that subquery is not reliably honoured.

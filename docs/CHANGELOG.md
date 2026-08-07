@@ -5,6 +5,65 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 3 — Pre-merge audit fixes · 2026-08-05
+
+Findings from a review of the payments work before merging to master. One of
+them would have taken a customer's money and left nothing saying so.
+
+346 tests passing, up from 338.
+
+### Fixed
+
+**HIGH — money could be confirmed against a cancelled booking.** `matchToBooking()`
+checked the payment but never the booking, and `confirm()` checked the payment's
+status but never the booking's. So an unmatched receipt could be attached to a
+booking the sweep cancelled overnight and then confirmed: `amount_paid`
+recomputed, `balance_due` reduced, the booking left cancelled, no refund record
+anywhere. The customer's money would have existed only as a row in `payments`.
+
+The path is ordinary, not contrived — a customer pays late and a clerk matches
+the receipt in the morning to a booking that expired at 23:00.
+
+Closed with `BookingStatus::canAcceptPayment()`, enforced at both attribution
+and confirmation. `Confirmed` still accepts payment, because that is how the
+balance is settled at the counter before release; `VehicleReleased`,
+`Completed` and every cancellation refuse it.
+
+**MEDIUM — the permission was checked against an unlocked copy of the payment.**
+`assertMayConfirm()` ran once, before the transaction, against the caller's
+instance. The permission depends on `payment_method_code`; nothing can change
+that today, but `payments.edit-manual-payment` exists and Phase 4 will build the
+screen behind it. Now re-asserted against the locked row. The pre-flight check
+stays, so a refusal still takes no locks.
+
+**LOW — the sweep's `leftForStaff` counter conflated three outcomes.** Every
+skipped candidate incremented it, including bookings that had simply been paid.
+That figure is printed nightly and DEPLOYMENT.md tells somebody to read it, so a
+number that cries wolf is worse than no number. Now three outcomes; only "holds
+money" counts.
+
+**LOW — `extendToHireEnd()` extended only the newest hold.** A booking should
+have one unreleased hold, but a reassignment failing partway could leave two,
+and the un-extended one would lapse and put a still-claimed vehicle back into
+search results. Extends all of them now.
+
+**LOW — a duplicate query ran while row locks were held.** `alreadyConfirmed()`
+resolved the confirming user twice inside the transaction.
+
+### Two caveats recorded honestly
+
+The audit was inspection by the same person who wrote the code, so its failure
+mode is missing what was never considered in the first place. It is not a
+substitute for a second pair of eyes.
+
+The two race-dependent fixes are reasoned rather than demonstrated: a single
+process cannot stage a confirmation landing between the candidate query and the
+lock, which is the same limitation already noted on the expiry race test. The
+tests added alongside them say so rather than implying coverage they do not
+have.
+
+---
+
 ## Phase 3 — Permission decisions settled · 2026-08-05
 
 The three §12 gaps this phase accumulated, resolved with the operator rather

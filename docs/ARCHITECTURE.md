@@ -460,6 +460,24 @@ that move is permitted — which is where the cross-border rule lives, so a
 cross-border booking goes to `awaiting_cross_border` rather than `confirmed`
 without this service knowing why.
 
+### Not every booking may be paid
+
+`BookingStatus::canAcceptPayment()` gates both attributing a receipt to a
+booking and confirming one. Only `pending_payment`, `confirmed` and
+`awaiting_cross_border` accept money.
+
+`confirmed` has to be on that list: it is how the balance is settled at the
+counter before the keys are handed over, which is the normal path for a booking
+that paid a 50% deposit.
+
+Everything else refuses. A cancelled booking is the case that matters — a
+customer pays late, a clerk matches the receipt in the morning to a booking the
+sweep cancelled at 23:00, and without this guard the confirmation would succeed:
+balance recomputed, booking still cancelled, no refund record, the money visible
+only to somebody reading the payments table. Refusing at attribution as well as
+at confirmation keeps the receipt in the unmatched queue, where it can still be
+traced, rather than attached to a booking nobody will honour.
+
 ### Unpaid is not underpaid
 
 `hasShortfall()` is false when nothing has arrived. Every receipt starts at zero

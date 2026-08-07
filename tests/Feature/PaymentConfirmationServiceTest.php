@@ -310,6 +310,72 @@ final class PaymentConfirmationServiceTest extends TestCase
         $this->confirmations->confirm($this->manager(), $payment, '1155.00');
     }
 
+    /**
+     * Found by the pre-merge audit.
+     *
+     * An unmatched receipt can be attributed to a booking, and the sweep can
+     * have cancelled that booking overnight. Without this guard the receipt was
+     * confirmable: the balance would be recomputed, the booking would stay
+     * cancelled, and nothing anywhere would say the customer was owed their
+     * money back. It would exist only as a row in `payments`.
+     */
+    public function test_money_cannot_be_confirmed_against_a_cancelled_booking(): void
+    {
+        [$booking, $payment] = $this->bookingAwaitingDeposit();
+
+        $booking->forceFill([
+            'status' => BookingStatus::CancelledNonPayment,
+            'cancelled_at' => $this->now,
+        ])->save();
+
+        $this->expectException(PaymentNotConfirmableException::class);
+
+        $this->confirmations->confirm($this->manager(), $payment, '1155.00');
+    }
+
+    public function test_a_refusal_on_a_cancelled_booking_takes_no_money(): void
+    {
+        [$booking, $payment] = $this->bookingAwaitingDeposit();
+
+        $booking->forceFill(['status' => BookingStatus::CancelledByCustomer])->save();
+
+        try {
+            $this->confirmations->confirm($this->manager(), $payment, '1155.00');
+            $this->fail('The confirmation should have been refused.');
+        } catch (PaymentNotConfirmableException) {
+            // Expected.
+        }
+
+        $this->assertDatabaseCount('payment_confirmations', 0);
+        $this->assertSame('0.00', $booking->refresh()->amount_paid);
+        $this->assertSame(PaymentStatus::AwaitingPayment, $payment->refresh()->status);
+    }
+
+    /**
+     * The balance at the counter, on a booking already confirmed by its
+     * deposit. This is the case the guard must NOT block.
+     */
+    public function test_the_balance_can_still_be_paid_on_a_confirmed_booking(): void
+    {
+        [$booking, $payment] = $this->bookingAwaitingDeposit();
+
+        $this->confirmations->confirm($this->manager(), $payment, '1155.00');
+
+        $balance = Payment::factory()->forBooking($booking)->create([
+            'payment_reference' => $booking->reference.'-2',
+            'payment_method_code' => PaymentMethodCode::Cash,
+            'expected_amount' => '1155.00',
+            'amount' => '0.00',
+        ]);
+
+        $result = $this->confirmations->confirm($this->manager(), $balance, '1155.00');
+
+        $this->assertSame('2310.00', $result->amountPaid);
+        $this->assertSame('0.00', $result->balanceDue);
+        $this->assertSame(BookingPaymentStatus::PaidInFull, $result->paymentStatus);
+        $this->assertSame(BookingStatus::Confirmed, $result->bookingStatusAfter);
+    }
+
     public function test_an_expired_payment_cannot_be_confirmed(): void
     {
         [, $payment] = $this->bookingAwaitingDeposit();

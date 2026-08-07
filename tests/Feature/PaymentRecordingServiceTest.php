@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Contracts\PaymentRecordingServiceContract;
+use App\Enums\BookingStatus;
 use App\Enums\PaymentMethodCode;
 use App\Enums\PaymentStatus;
 use App\Enums\StaffPermission;
@@ -381,6 +382,24 @@ final class PaymentRecordingServiceTest extends TestCase
 
         $this->assertSame($booking->getKey(), $matched->booking_id);
         $this->assertSame($clerk->getKey(), $matched->matched_by_user_id);
+    }
+
+    /**
+     * Found by the pre-merge audit. Refused at both steps: attaching money to a
+     * cancelled booking and only discovering at the confirm step that it cannot
+     * be taken leaves the receipt attributed to a booking nobody will honour,
+     * which is a worse place for it than the queue it came from.
+     */
+    public function test_a_receipt_cannot_be_attributed_to_a_cancelled_booking(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $booking = Booking::factory()->create(['status' => BookingStatus::CancelledNonPayment]);
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+
+        $this->expectException(PaymentNotRecordableException::class);
+
+        $this->recording->matchToBooking($manager, $receipt, $booking);
     }
 
     public function test_someone_with_no_role_may_not_attribute_a_receipt(): void
