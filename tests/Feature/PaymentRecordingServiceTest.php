@@ -257,6 +257,117 @@ final class PaymentRecordingServiceTest extends TestCase
         $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::CreditCard, '500.00');
     }
 
+    // --- Attributing an unmatched receipt --------------------------------
+
+    public function test_it_attributes_a_receipt_to_a_booking(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $booking = Booking::factory()->create();
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+
+        $matched = $this->recording->matchToBooking($manager, $receipt, $booking);
+
+        $this->assertSame($booking->getKey(), $matched->booking_id);
+        $this->assertSame($booking->operator_id, $matched->operator_id);
+        $this->assertSame($manager->getKey(), $matched->matched_by_user_id);
+        $this->assertNotNull($matched->matched_at);
+    }
+
+    /**
+     * The number written down when the money appeared must still find it
+     * afterwards. Renumbering it into the booking's series would erase the only
+     * reference the customer and the statement have in common.
+     */
+    public function test_a_matched_receipt_keeps_its_own_reference(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $booking = Booking::factory()->create();
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+        $matched = $this->recording->matchToBooking($manager, $receipt, $booking);
+
+        $this->assertSame('UP-00001', $matched->payment_reference);
+    }
+
+    /**
+     * Nothing was ever asked for on this receipt. Back-filling the booking's
+     * balance as an expectation would invent a shortfall out of a figure the
+     * customer was never quoted.
+     */
+    public function test_matching_does_not_invent_an_expected_amount(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $booking = Booking::factory()->create(['grand_total' => '2310.00']);
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '400.00');
+        $matched = $this->recording->matchToBooking($manager, $receipt, $booking);
+
+        $this->assertNull($matched->expected_amount);
+        $this->assertFalse($matched->hasShortfall());
+    }
+
+    /**
+     * Attribution is not verification. Two different judgements, and having
+     * just made the first should not make the second happen by itself.
+     */
+    public function test_matching_does_not_confirm_anything(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $booking = Booking::factory()->create(['amount_paid' => '0.00']);
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+        $matched = $this->recording->matchToBooking($manager, $receipt, $booking);
+
+        $this->assertSame(PaymentStatus::AwaitingPayment, $matched->status);
+        $this->assertDatabaseCount('payment_confirmations', 0);
+        $this->assertSame('0.00', $booking->refresh()->amount_paid);
+    }
+
+    public function test_a_receipt_that_already_belongs_to_a_booking_cannot_be_rematched(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $first = Booking::factory()->create();
+        $second = Booking::factory()->create();
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+        $this->recording->matchToBooking($manager, $receipt, $first);
+
+        $this->expectException(PaymentNotRecordableException::class);
+
+        $this->recording->matchToBooking($manager, $receipt->refresh(), $second);
+    }
+
+    public function test_a_counter_clerk_may_not_attribute_a_receipt(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+        $booking = Booking::factory()->create();
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+
+        $this->expectException(StaffPermissionDeniedException::class);
+
+        $this->recording->matchToBooking($clerk, $receipt, $booking);
+    }
+
+    public function test_attributing_a_receipt_is_audited(): void
+    {
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $booking = Booking::factory()->create();
+
+        $receipt = $this->recording->recordUnmatchedReceipt($manager, PaymentMethodCode::MtnMomo, '1155.00');
+        $this->recording->matchToBooking($manager, $receipt, $booking);
+
+        $this->assertDatabaseHas('audit_log', [
+            'action' => 'payment.matched',
+            'booking_id' => $booking->getKey(),
+            'actor_user_id' => $manager->getKey(),
+            'payment_reference' => 'UP-00001',
+            'amount' => '1155.00',
+        ]);
+    }
+
     private function method(PaymentMethodCode $code): PaymentMethod
     {
         return PaymentMethod::query()->where('code', $code->value)->sole();

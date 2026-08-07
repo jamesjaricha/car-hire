@@ -8,6 +8,7 @@ use App\Contracts\PricingServiceContract;
 use App\Contracts\VehicleHoldServiceContract;
 use App\DataTransferObjects\DateRange;
 use App\Exceptions\VehicleNotAvailableException;
+use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Models\VehicleHold;
 use Carbon\CarbonImmutable;
@@ -157,6 +158,52 @@ final class VehicleHoldService implements VehicleHoldServiceContract
             'released_at' => CarbonImmutable::now(),
             'is_active' => null,
         ])->save();
+    }
+
+    /**
+     * A confirmed booking's hold claims its vehicle until the hire ends.
+     *
+     * WHY THIS EXISTS
+     *
+     * `expires_at` is set to the payment deadline when the hold is placed,
+     * because until money arrives that is the whole extent of the claim. Once
+     * the booking is confirmed that reason is spent and a stronger one replaces
+     * it — but nothing was moving the date, so the deadline still lapsed and
+     * `stillClaiming()` stopped matching. Both `AvailabilityService` and
+     * `place()` decide from holds alone, so the vehicle came back onto sale
+     * partway through a hire somebody had already paid for.
+     *
+     * Nothing caught it for two phases because no payment could be confirmed
+     * until Phase 3; every booking in the suite sat in `pending_payment`, where
+     * the deadline is exactly the right expiry.
+     *
+     * `place()` remains the only INSERTER of holds — this only moves a date on
+     * a row that already exists, and moving it later can never create an
+     * overlap that was not already there.
+     */
+    public function extendToHireEnd(Booking $booking): ?VehicleHold
+    {
+        $hold = VehicleHold::query()
+            ->where('booking_id', $booking->getKey())
+            ->whereNull('released_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $hold instanceof VehicleHold) {
+            // Short-notice bookings never place one. Spec §8.2.
+            return null;
+        }
+
+        // Never shorten. A hire ending before the payment deadline — possible
+        // on a very late booking — must keep the later of the two, or
+        // confirming would hand the car back to the search results.
+        if ($hold->expires_at->greaterThanOrEqualTo($hold->end_at)) {
+            return $hold;
+        }
+
+        $hold->forceFill(['expires_at' => $hold->end_at])->save();
+
+        return $hold;
     }
 
     public function releaseExpired(?CarbonImmutable $asOf = null): int

@@ -121,10 +121,34 @@ raw SQL, and keeps those comparisons byte-identical to the single-vehicle check
 
 ---
 
-## 3. Hold expiry, and why it self-heals
+## 3. The two lives of a hold, and why expiry self-heals
 
-A hold lapses when its payment deadline passes. A scheduled sweep releases them
-and notifies the customer.
+A hold means two different things over its life, and `expires_at` carries both.
+
+**While the booking is unpaid** it means "kept back while we wait for money",
+and `expires_at` is the payment deadline. If the money never comes, the claim
+should evaporate on its own.
+
+**Once the booking is confirmed** that reason is spent and a stronger one
+replaces it: the car is spoken for until the customer brings it back.
+`PaymentConfirmationService` therefore has `VehicleHoldService::extendToHireEnd()`
+move `expires_at` out to the end of the hire.
+
+Without that second step the deadline still lapsed, `stillClaiming()` stopped
+matching, and — because both `AvailabilityService` and `place()` decide from
+holds and nothing else — the vehicle returned to sale partway through a hire
+that had been paid for. It was found in Phase 3 and had been latent since Phase
+1: no payment could be confirmed until then, so every booking in the suite sat
+in `pending_payment`, where the payment deadline is exactly the right expiry.
+
+`place()` remains the only code that INSERTS a hold. Moving a date on a row that
+already exists cannot create an overlap that was not already there, and the
+extension only ever moves it later.
+
+### Expiry
+
+A hold still lapses when its payment deadline passes, for bookings that never
+got paid. A scheduled sweep releases them and notifies the customer.
 
 The guideline warns that if that job dies unnoticed, vehicles stay locked and
 inventory silently disappears. Two mitigations:
@@ -393,6 +417,28 @@ alongside the receipt freezes the comparison at the moment it was made.
 
 An unmatched receipt has no expectation and therefore cannot be short. It is not
 missing money; it is money nobody has attributed yet.
+
+### Two thresholds, and they are not the same
+
+`payment_status` measures against the whole hire. Anything short of the grand
+total is `partially_paid`.
+
+Whether the **booking** confirms measures against what the customer chose to pay
+now — the full total, or the deposit. Somebody who opted for a 50% deposit and
+paid it has done everything asked of them, so their booking confirms while their
+payment position stays `partially_paid`. That combination is spec §5 working
+correctly, not a contradiction: enough to hold the car, not enough to release it.
+
+Somebody who sent less than they chose has not met the threshold. The booking
+stays in `pending_payment` with its hold and deadline untouched, so they still
+have until the deadline to send the rest. Cancelling them for underpaying, while
+their money sits in the operator's account, would be indefensible.
+
+Confirmation never assigns a booking status. It recomputes the balance, works
+out what the booking is entitled to be, and asks `BookingStateMachine` whether
+that move is permitted — which is where the cross-border rule lives, so a
+cross-border booking goes to `awaiting_cross_border` rather than `confirmed`
+without this service knowing why.
 
 ### Unpaid is not underpaid
 

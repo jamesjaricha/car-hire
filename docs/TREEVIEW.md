@@ -16,6 +16,8 @@ carhire/
 │   │   ├── Commands/
 │   │   │   ├── AttemptBookingCommand.php     Test harness. One whole checkout,
 │   │   │   │                                 outcome as an exit code.
+│   │   │   ├── AttemptPaymentConfirmationCommand.php
+│   │   │   │                                 Test harness. One confirmation.
 │   │   │   └── AttemptVehicleHoldCommand.php Test harness. One hold attempt.
 │   │   └── Concerns/
 │   │       └── WaitsForBarrier.php           Holds spawned processes at a shared
@@ -131,6 +133,9 @@ carhire/
 │   │   │   │   ├── MtnMomoAdapter.php             NOT a gateway. Spec §3.1.
 │   │   │   │   └── AirtelMoneyAdapter.php
 │   │   │   ├── PaymentAdapterResolver.php         Cards resolve to a refusal.
+│   │   │   ├── PaymentConfirmationService.php ★   Where money becomes real. The
+│   │   │   │                                      unique key is the guarantee,
+│   │   │   │                                      not the check inside it.
 │   │   │   ├── PaymentDeadlineCalculator.php      Spec §8.2, incl. short notice.
 │   │   │   ├── PaymentMethodService.php           Refuses disabled methods server-side.
 │   │   │   ├── PaymentRecordingService.php    ★   Raises receipts. Touches the
@@ -205,6 +210,10 @@ carhire/
 │   │   ├── PaymentMethodServiceTest.php
 │   │   ├── PaymentAdapterTest.php             Resolution, configuration and
 │   │   │                                      merge-field rendering.
+│   │   ├── PaymentConfirmationConcurrencyTest.php ★
+│   │   │                                      Four processes, one payment. The
+│   │   │                                      test the phase was built around.
+│   │   ├── PaymentConfirmationServiceTest.php Thresholds, refusals, the hold.
 │   │   ├── PaymentModelTest.php               Proves the double-confirmation
 │   │   │                                      constraint at the database.
 │   │   ├── PaymentRecordingServiceTest.php    Raising, unmatched receipts,
@@ -234,17 +243,14 @@ carhire/
 
 ## Not yet built
 
-Phase 3 is under way. A booking now creates a real payment record with its own
-reference, and writes an audit entry when it does.
+Phase 3 is nearly done. A booking can be taken, paid for and confirmed, and
+every step of that is audited.
 
-Still to come in this phase: `PaymentConfirmationService` — with the two-process
-double-confirmation test that is the whole point of the
-`payment_confirmations` unique key — matching an unmatched receipt to a booking,
-and the expiry job with its scheduled command.
+One slice remains: the expiry sweep and its scheduled command, which cancel an
+unpaid booking at its deadline and release the hold.
 
-The `refunds` table belongs with the Phase 4 approval workflow. Nothing has
-confirmed a payment yet, so no booking has ever left `pending_payment` by
-paying.
+The `refunds` table belongs with the Phase 4 approval workflow, along with
+releasing a hold when a car comes back early — see OPEN-ITEMS.md.
 
 Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
 notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.

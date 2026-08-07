@@ -52,4 +52,22 @@ interface PaymentRecordingServiceContract
         ?string $externalReference = null,
         ?string $notes = null,
     ): Payment;
+
+    /**
+     * Attribute an unmatched receipt to the booking it belongs to.
+     *
+     * Attribution only — it does not confirm anything. Working out whose money
+     * this is and verifying that the money arrived are two different judgements,
+     * and a staff member who has just done the first should still have to make
+     * the second deliberately.
+     *
+     * The receipt KEEPS its `UP-` reference. The number written down when the
+     * money appeared must still find it afterwards.
+     */
+    public function matchToBooking(
+        User $actor,
+        Payment $payment,
+        Booking $booking,
+        ?string $notes = null,
+    ): Payment;
 }

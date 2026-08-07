@@ -20,6 +20,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\User;
 use App\Support\Money;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -175,6 +176,75 @@ final class PaymentRecordingService implements PaymentRecordingServiceContract
 
             return $payment;
         });
+    }
+
+    public function matchToBooking(
+        User $actor,
+        Payment $payment,
+        Booking $booking,
+        ?string $notes = null,
+    ): Payment {
+        $this->assertMayRecordManually($actor);
+
+        return DB::transaction(function () use ($actor, $payment, $booking, $notes): Payment {
+            // Booking then payment, the same order PaymentConfirmationService
+            // and PaymentReferenceGenerator use. One lock order across every
+            // transaction that holds both is what keeps them queuing instead of
+            // deadlocking.
+            $lockedBooking = Booking::query()->whereKey($booking->getKey())->lockForUpdate()->first();
+
+            if (! $lockedBooking instanceof Booking) {
+                throw PaymentNotRecordableException::amountNotPositive('0.00');
+            }
+
+            $locked = Payment::query()->whereKey($payment->getKey())->lockForUpdate()->first();
+
+            if (! $locked instanceof Payment) {
+                throw PaymentNotRecordableException::alreadyAttributed($payment->payment_reference);
+            }
+
+            // Re-checked under the lock. Two staff working the same queue is
+            // exactly the situation this exists to handle.
+            if ($locked->booking_id !== null) {
+                throw PaymentNotRecordableException::alreadyAttributed($locked->payment_reference);
+            }
+
+            // Confirmed money is already counted against some balance. Moving
+            // it would change two bookings' totals at once, and neither would
+            // be recomputed.
+            if ($locked->status === PaymentStatus::Confirmed) {
+                throw PaymentNotRecordableException::confirmedPaymentCannotBeMoved($locked->payment_reference);
+            }
+
+            $locked->forceFill([
+                'booking_id' => $lockedBooking->getKey(),
+                'operator_id' => $lockedBooking->operator_id,
+                'matched_by_user_id' => $actor->getKey(),
+                'matched_at' => CarbonImmutable::now(),
+
+                // `expected_amount` stays null. Nothing was ever asked for on
+                // this receipt, and back-filling it with the booking's balance
+                // would invent a shortfall out of an amount the customer was
+                // never quoted.
+            ])->save();
+
+            $this->audit->record(new AuditEntry(
+                action: AuditAction::PaymentMatched,
+                actor: $actor,
+                booking: $lockedBooking,
+                entity: $locked,
+                amount: $locked->amount,
+                paymentReference: $locked->payment_reference,
+                paymentMethod: $locked->payment_method_code,
+                notes: $notes ?? 'Unattributed receipt matched to a booking.',
+                metadata: array_filter([
+                    'external_reference' => $locked->external_reference,
+                    'booking_reference' => $lockedBooking->reference,
+                ], static fn (mixed $value): bool => $value !== null),
+            ));
+
+            return $locked;
+        }, attempts: 3);
     }
 
     /**

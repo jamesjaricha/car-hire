@@ -5,6 +5,101 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 3 (in progress) — Payment confirmation · 2026-08-05
+
+Money becomes real. A booking can now be paid for and confirmed.
+
+### Added
+
+**Domain**
+- `PaymentConfirmationService` — the only thing in the platform that moves a
+  booking forward on the strength of payment, and the sole writer to
+  `payment_confirmations`.
+- `PaymentConfirmationResult` — the recomputed figures, so a confirmation screen
+  shows what the action produced rather than whatever the row says by the time
+  it renders.
+- `PaymentRecordingService::matchToBooking()` — attributing an unmatched receipt.
+- `VehicleHoldService::extendToHireEnd()` — see the bug below.
+- `carhire:attempt-payment-confirmation`, the third concurrency harness.
+
+**Tests** — 322 passing, up from 288, including a third multi-process suite.
+The run is now around four minutes.
+
+### The bug this chunk found
+
+**A confirmed booking's vehicle went back on sale partway through the hire.**
+
+A hold is created with `expires_at` set to the payment deadline, because until
+the money arrives that is all the claim is worth. Nothing moved that date when
+the booking was confirmed. Once the deadline passed, `stillClaiming()` stopped
+matching — and both `AvailabilityService` and `VehicleHoldService::place()`
+decide from holds and nothing else. The car was free to be sold again, to
+somebody who would turn up and find it gone.
+
+It had been latent since Phase 1 and nothing could have caught it: no payment
+could be confirmed until this chunk, so every booking in the suite sat in
+`pending_payment`, where the payment deadline is exactly the right expiry.
+
+Fixed by giving the hold its second life explicitly — on confirmation,
+`expires_at` moves out to the end of the hire. Two tests cover it, one of which
+travels past the old deadline and asserts the vehicle is still claimed.
+ARCHITECTURE §3 is rewritten around it.
+
+### Decisions
+
+- **The unique key is the guard; the check is courtesy.** The service locks and
+  re-reads before inserting, but that only exists to produce "already confirmed
+  by Mary at 14:32" instead of a raw constraint error. Both paths raise the same
+  exception on purpose — staff should not be able to tell which one caught them.
+  `PaymentConfirmationConcurrencyTest` runs four processes at a barrier against
+  one payment and asserts one confirmation, one audit entry, and an
+  `amount_paid` of 1155.00 rather than 4620.00.
+
+- **Lock order is booking, then payment, everywhere.** `confirm()`,
+  `matchToBooking()` and `PaymentReferenceGenerator` all take them in that
+  order, so transactions holding both queue rather than deadlock. Reversing it
+  in any one of them would introduce a cycle.
+
+- **Two thresholds, deliberately different.** `payment_status` measures against
+  the whole hire; whether the booking confirms measures against what the
+  customer chose to pay. A paid deposit therefore confirms the booking and
+  leaves the hire `partially_paid` — enough to hold the car, not enough to
+  release it. An underpayment leaves the booking pending with its hold and
+  deadline intact, because cancelling somebody for underpaying while their money
+  sits in the operator's account would be indefensible.
+
+- **The balance is clamped at zero.** An overpayment is a refund question, not a
+  debt owed the other way, and a balance of −190.00 on a screen invites somebody
+  to treat it as credit against a future hire. The overpaid amount is reported
+  separately.
+
+- **Confirmation never assigns a booking status.** It recomputes, decides what
+  the booking is entitled to be, and asks `BookingStateMachine`. That is where
+  the cross-border rule lives, so a cross-border booking reaches
+  `awaiting_cross_border` without this service knowing why (spec §7.3, §11).
+
+- **The amount received is a required argument.** Spec §5 and the guideline both
+  anticipate customers sending the wrong figure. A confirm button that defaults
+  to the expected amount is a button that records money nobody counted.
+
+- **A matched receipt keeps its `UP-` reference and gains no expected amount.**
+  Renumbering it would erase the only reference the customer and the statement
+  have in common; back-filling an expectation would invent a shortfall out of a
+  figure the customer was never quoted.
+
+- **Attribution never confirms.** Working out whose money this is and verifying
+  that it arrived are two judgements, and having just made the first should not
+  make the second happen by itself.
+
+### Known gaps
+
+- Nothing expires an unpaid booking yet. The sweep and its scheduled command are
+  the last slice of this phase.
+- A hold now claims its vehicle until the hire ends, but nothing releases it
+  when a car comes back early. Recorded in OPEN-ITEMS.md.
+
+---
+
 ## Phase 3 (in progress) — Payment adapters and recording · 2026-08-05
 
 A booking now produces a real payment record. Nothing confirms one yet.

@@ -22,6 +22,22 @@ final class PaymentNotRecordableException extends DomainException
         );
     }
 
+    public static function alreadyAttributed(string $reference): self
+    {
+        return new self(
+            "Payment [{$reference}] already belongs to a booking. "
+            .'Moving money between bookings is not a matching decision — reverse it and record it again.'
+        );
+    }
+
+    public static function confirmedPaymentCannotBeMoved(string $reference): self
+    {
+        return new self(
+            "Payment [{$reference}] has been confirmed and cannot be reattributed. "
+            .'Its money is already counted against a booking balance.'
+        );
+    }
+
     public static function methodCannotBeUsedManually(string $code): self
     {
         return new self(

@@ -121,6 +121,15 @@ watching the till, this is the wrong way round and should be changed.
 
 All three are one-line seeder changes. Confirm with the operator.
 
+**A confirmed hold is not released when the car comes back.** Confirming a
+payment extends the hold's `expires_at` to the end of the hire, which is what
+keeps the vehicle claimed for the whole booking (ARCHITECTURE §3). Nothing yet
+shortens it when a hire ends early — a customer returning on Tuesday a car
+booked until Friday leaves it claimed until Friday, and those days cannot be
+resold. Not a correctness problem; a revenue one. `completed` and
+`cancelled_*` transitions should release the hold. Due with the returns workflow
+in Phase 4.
+
 **Payment method account details are empty.** `PaymentMethodSeeder` leaves
 `account_details` null on every method, deliberately — real bank account and
 merchant numbers are operator data and do not belong in source control. Until
