@@ -67,17 +67,59 @@ cost time on previous projects.
 
 ## Scheduled work
 
-There is no daemonised queue worker on shared hosting. Both of these need cron:
+There is no daemonised queue worker on shared hosting. This needs cron:
 
 ```
-* * * * * cd ~/path/to/app && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd ~/path/to/app && php artisan schedule:run >> ~/logs/schedule.log 2>&1
 ```
 
-The scheduler drives hold expiry. **If it stops, vehicles stay claimed and
-inventory disappears from sale.** Two mitigations already exist in the
-application — the availability query ignores holds past their deadline, and
-placing a hold retires lapsed ones — but a manual "release expired holds" admin
-action is still required, and someone should be watching that the cron runs.
+Note the log destination. The usual `>> /dev/null 2>&1` is exactly what makes a
+dying scheduler silent, which is the failure the developer guideline singles
+out. Send it somewhere a person can read.
+
+### What the scheduler runs
+
+One entry, registered in `routes/console.php`:
+
+| Command | Frequency | Does |
+|---|---|---|
+| `carhire:expire-bookings` | every 5 minutes | Cancels bookings whose payment deadline has passed, expires their payments, releases their holds, and sweeps up any other lapsed hold |
+
+Five minutes rather than hourly because a lapsed deadline is a claim on a
+vehicle: an hourly sweep keeps a car off sale for up to an hour after the claim
+on it ended, which on a small fleet is a booking lost for nothing.
+
+### If it stops
+
+**Vehicles stay claimed and inventory disappears from sale**, and nothing
+announces it. Three things soften that, and none of them replaces watching the
+cron:
+
+- The availability query ignores holds past their deadline, so a lapsed hold
+  stops blocking sales whether or not the sweep has run.
+- Placing a hold retires that vehicle's lapsed holds first.
+- The command is safe to run by hand at any time, and safe to run twice:
+
+```bash
+cd ~/path/to/app && php artisan carhire:expire-bookings
+```
+
+That is the manual action the guideline asks for. It prints what it did, so it
+is also the quickest way to check the sweep is working at all.
+
+### The line to watch in its output
+
+The command warns when part-paid bookings are sitting past their deadline:
+
+```
+N part-paid booking(s) are past their deadline and need a decision from staff.
+```
+
+These are deliberately **not** cancelled automatically — each is holding money
+the customer has paid, and cancelling one unattended would strand real cash
+against a cancelled booking with no refund record. They wait for a person. Until
+the admin panel has a screen for them (see OPEN-ITEMS.md), this log line is the
+only thing that will tell anyone they exist.
 
 ---
 
@@ -105,6 +147,9 @@ against live booking or payment data.
 - [ ] `TRIGGER` privilege confirmed and both triggers present
 - [ ] Every blocking item in [OPEN-ITEMS.md](OPEN-ITEMS.md) answered — no
       placeholder settings remain
-- [ ] Cron confirmed running, and hold expiry observed working
+- [ ] Cron confirmed running, and `carhire:expire-bookings` observed cancelling
+      a real expired booking — not merely present in `schedule:list`
+- [ ] Somebody named as responsible for reading the part-paid warning, or a
+      screen built for it
 - [ ] Backups scheduled and a restore tested, not just assumed
 - [ ] Full test suite green against MySQL

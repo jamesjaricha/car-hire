@@ -6,8 +6,7 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: Phase 3 in progress (roles, permissions, payment records, audit
-writing, references, adapters and recording landed), 2026-08-05.
+Last updated: end of Phase 3, 2026-08-05.
 
 ```
 carhire/
@@ -18,7 +17,9 @@ carhire/
 │   │   │   │                                 outcome as an exit code.
 │   │   │   ├── AttemptPaymentConfirmationCommand.php
 │   │   │   │                                 Test harness. One confirmation.
-│   │   │   └── AttemptVehicleHoldCommand.php Test harness. One hold attempt.
+│   │   │   ├── AttemptVehicleHoldCommand.php Test harness. One hold attempt.
+│   │   │   └── ExpireBookingsCommand.php ★   NOT a harness. Runs in production,
+│   │   │                                     every 5 minutes, and by hand.
 │   │   └── Concerns/
 │   │       └── WaitsForBarrier.php           Holds spawned processes at a shared
 │   │                                         instant so contention is real.
@@ -118,6 +119,8 @@ carhire/
 │   │   ├── Bookings/
 │   │   │   ├── BookingCreationService.php     ★   Where everything meets, in one
 │   │   │   │                                      transaction. Lock ordering matters.
+│   │   │   ├── BookingExpiryService.php           Spec §8.4. One transaction per
+│   │   │   │                                      booking; part-paid ones skipped.
 │   │   │   ├── BookingReferenceGenerator.php      Gapless BR-00001, under a lock.
 │   │   │   └── BookingStateMachine.php            Spec §7.3, transcribed.
 │   │   ├── Customers/
@@ -204,6 +207,8 @@ carhire/
 │   │   ├── BasketServiceTest.php              Price frozen against a rate change.
 │   │   ├── BookingConcurrencyTest.php     ★   Real processes racing a whole checkout.
 │   │   ├── BookingCreationServiceTest.php
+│   │   ├── BookingExpiryServiceTest.php       Read the note on the race test:
+│   │   │                                      it proves less than it looks.
 │   │   ├── BookingReferenceGeneratorTest.php
 │   │   ├── CustomerResolverTest.php           Spec §1.4 in full.
 │   │   ├── PaymentDeadlineCalculatorTest.php
@@ -243,14 +248,24 @@ carhire/
 
 ## Not yet built
 
-Phase 3 is nearly done. A booking can be taken, paid for and confirmed, and
-every step of that is audited.
+Phases 1 to 3 are complete. A booking can be searched for, priced, held, taken,
+paid for, confirmed and expired, and every consequential step is audited. There
+is still no user interface of any kind.
 
-One slice remains: the expiry sweep and its scheduled command, which cancel an
-unpaid booking at its deadline and release the hold.
+**Phase 4 — Admin.** Roles UI, payment confirmation screens, the unmatched
+payments queue, the part-paid-past-deadline queue, vehicle reassignment,
+deadline extension, and the `refunds` table with its two-person request and
+approve workflow.
 
-The `refunds` table belongs with the Phase 4 approval workflow, along with
-releasing a hold when a car comes back early — see OPEN-ITEMS.md.
+**Phase 5 — Customer UI.** Search, vehicle detail, basket, checkout,
+confirmation. Guest flow first, account linking second.
+
+**Phase 6 — Notifications, KYC upload, cross-border.** Including the payment
+reminder of spec §8.4 and the cross-border tables that turn
+`awaiting_cross_border` into a workflow rather than a state.
+
+Carried into Phase 4 and recorded in OPEN-ITEMS.md: releasing a hold when a car
+comes back early, and the screens for the two queues above.
 
 Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
 notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.

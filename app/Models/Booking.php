@@ -254,4 +254,25 @@ final class Booking extends Model
             ->whereNotNull('payment_deadline_at')
             ->where('payment_deadline_at', '<=', $asOf ?? CarbonImmutable::now());
     }
+
+    /**
+     * Bookings the expiry sweep deliberately refused to touch.
+     *
+     * The deadline has passed, but the customer has paid something — so
+     * cancelling them is a decision about a refund, and spec §9.3 requires a
+     * refund to be requested and approved by two different people, neither of
+     * whom is a scheduled job. They wait here for a person.
+     *
+     * This is a queue, and it needs a screen. Without one these accumulate
+     * silently, each holding somebody's money.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeStalledAfterDeadline(Builder $query, ?CarbonImmutable $asOf = null): Builder
+    {
+        return $query
+            ->pastPaymentDeadline($asOf)
+            ->where('amount_paid', '>', 0);
+    }
 }

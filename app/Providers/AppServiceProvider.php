@@ -8,6 +8,7 @@ use App\Contracts\AuditLoggerContract;
 use App\Contracts\AvailabilityServiceContract;
 use App\Contracts\BasketServiceContract;
 use App\Contracts\BookingCreationServiceContract;
+use App\Contracts\BookingExpiryServiceContract;
 use App\Contracts\BookingReferenceGeneratorContract;
 use App\Contracts\BookingStateMachineContract;
 use App\Contracts\CustomerResolverContract;
@@ -27,6 +28,7 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Availability\AvailabilityService;
 use App\Services\Basket\BasketService;
 use App\Services\Bookings\BookingCreationService;
+use App\Services\Bookings\BookingExpiryService;
 use App\Services\Bookings\BookingReferenceGenerator;
 use App\Services\Bookings\BookingStateMachine;
 use App\Services\Customers\CustomerResolver;
@@ -61,6 +63,7 @@ final class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(AuditLoggerContract::class, AuditLogger::class);
         $this->app->singleton(BookingCreationServiceContract::class, BookingCreationService::class);
+        $this->app->singleton(BookingExpiryServiceContract::class, BookingExpiryService::class);
         $this->app->singleton(BookingReferenceGeneratorContract::class, BookingReferenceGenerator::class);
         $this->app->singleton(PaymentAdapterResolverContract::class, PaymentAdapterResolver::class);
         $this->app->singleton(PaymentConfirmationServiceContract::class, PaymentConfirmationService::class);
