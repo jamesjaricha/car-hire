@@ -37,6 +37,8 @@ final class AuditLogEntry extends Model
         'status_after',
         'amount',
         'payment_reference',
+        'payment_method_code',
+        'proof_uploaded',
         'branch_id',
         'notes',
         'metadata',
@@ -49,6 +51,7 @@ final class AuditLogEntry extends Model
             'amount' => 'decimal:2',
             'metadata' => 'array',
             'is_automatic' => 'boolean',
+            'proof_uploaded' => 'boolean',
             'created_at' => 'immutable_datetime',
         ];
     }

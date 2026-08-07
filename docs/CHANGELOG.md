@@ -5,6 +5,76 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 3 (in progress) — Audit writing and payment references · 2026-08-05
+
+The two things every remaining service in this phase depends on.
+
+### Added
+
+**Schema**
+- `audit_log.payment_method_code` and `audit_log.proof_uploaded`. Spec §12
+  requires both on every entry; Phase 1 built the table without them. Added now
+  because the table is still empty — `AuditLogger`, its first writer, arrives in
+  this same commit — so it is the last moment this costs nothing.
+
+**Domain**
+- `AuditAction` — the audited actions of spec §12.
+- `AuditEntry` — one thing that happened, on its way to the log. Deliberately
+  dumb; it converts nothing.
+- `AuditLogger` — the sole writer to `audit_log`, which has been append-only
+  and unwritten-to since Phase 1.
+- `ReferenceSequence` — the locked, gapless counter, extracted from
+  `BookingReferenceGenerator` so payments can share it.
+- `PaymentReferenceGenerator` — `BR-00001-1` for a booking's payments,
+  `UP-00001` for money that arrived without one.
+
+**Tests** — 253 passing, up from 234.
+
+### Decisions
+
+- **`is_automatic` is derived from whether there is an actor, never passed in.**
+  §12 wants manual-versus-automatic recorded, but that is not an independent
+  fact — it is precisely whether a person did it. As a separate flag, an entry
+  could claim a staff member acted automatically, or that the expiry sweep was
+  a person, and nothing would object.
+
+- **`AuditAction` declares every §12 audited action, including ones nothing
+  writes yet** — refunds, KYC, cross-border, payment method changes. Adding
+  cases phase by phase is how an audit table ends up holding
+  `payment.confirmed`, `payment_confirmed` and `confirm_payment`, at which
+  point querying it honestly becomes guesswork. The vocabulary is cheap;
+  agreeing on it afterwards is not.
+
+- **A payment's suffix is derived from existing payments, not from a counter
+  row.** Booking references need a counter because they are global and gapless.
+  A suffix is neither — it is per booking and already implied by the payments
+  that exist, so a counter would be a row per booking to maintain and a second
+  source of truth to disagree with them. Deriving it makes allocation a
+  read-modify-write, so it takes a lock on the **booking** row: there is no row
+  to lock for a payment that does not exist yet, and locking the booking gives
+  every allocation for it the same queue.
+
+- **Derived from the highest suffix, not from a count.** With a count, a missing
+  `-2` would hand out `-3` twice and turn a routine confirmation into a 500.
+
+- **An unmatched receipt keeps its `UP-` reference when it is matched.** The
+  number staff wrote down when the money appeared must still find it afterwards.
+  The suffix parser skips references that are not in the booking's series, so a
+  matched-in receipt neither looks like a suffix nor shifts the ones after it.
+
+- **The `UP-` series shares `booking_reference_counters`.** That table has always
+  been generic — a prefix and a next value. Renaming it would be cosmetic churn
+  on live data; the name stays and both the service and the config say why.
+
+### Changed
+
+- `BookingReferenceGenerator` now delegates its locking to `ReferenceSequence`
+  and keeps only the formatting. Behaviour is unchanged and its existing test is
+  untouched. Two copies of the most concurrency-sensitive code in the project is
+  how one of them quietly stops matching the other.
+
+---
+
 ## Phase 3 (in progress) — Payment records and states · 2026-08-05
 
 The tables money will be recorded in, and the states it moves through. Still no

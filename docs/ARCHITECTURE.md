@@ -194,6 +194,38 @@ never installed. The test that matters bypasses the model and issues raw SQL.
 There is no `updated_at` column. A row that can be updated is not an audit
 record. Correcting a mistaken entry means appending a correcting entry.
 
+### One writer
+
+`AuditLogger` is the only thing permitted to write to `audit_log`, the same
+discipline `VehicleHoldService::place()` has over `vehicle_holds` and for a
+related reason. Spec §12 lists what every entry must record; with several
+writers, half those fields end up populated only sometimes, and a trail that is
+usually complete is not a trail. Callers hand it an `AuditEntry` and it decides
+what a row contains.
+
+It converts two things centrally rather than at each call site, so they are
+converted the same way every time: status enums become their backing strings,
+and amounts go through `Money`, so an entry recording `'300'` against a payment
+holding `'300.00'` cannot happen.
+
+Write the entry **inside** the transaction that performs the action. An audit
+record that survives a rolled-back action describes something that did not
+happen.
+
+### Manual or automatic is derived, not declared
+
+§12 requires every entry to record whether a person or a job acted. That is not
+an independent fact — it is exactly whether there was an actor, so `AuditLogger`
+derives it from one. Passed in separately, an entry could claim a staff member
+acted automatically, or that the expiry sweep was a person, and nothing in the
+system would object.
+
+`payment_method_code` and `proof_uploaded` were added to the table in Phase 3,
+while it was still empty. §12 requires both on every entry and Phase 1 did not
+anticipate them. They are columns rather than `metadata` keys because the
+questions they answer — show me every cash confirmation, which had proof — are
+queries.
+
 ---
 
 ## 7. Configuration over constants

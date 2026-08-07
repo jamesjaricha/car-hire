@@ -67,6 +67,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Unmatched Payment References
+    |--------------------------------------------------------------------------
+    |
+    | A payment against a booking takes that booking's reference plus a suffix:
+    | BR-00001-1. Money that arrives without a booking — a mobile money receipt
+    | nobody can attribute yet — has no such reference to build on, so it takes
+    | its own series instead: UP-00001.
+    |
+    | A receipt KEEPS this reference when it is later matched to a booking. The
+    | number staff wrote down when the money appeared must still find it
+    | afterwards.
+    |
+    */
+
+    'unmatched_payment_reference_prefix' => env('CARHIRE_UNMATCHED_PAYMENT_REFERENCE_PREFIX', 'UP'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Fallback Turnaround Buffer
     |--------------------------------------------------------------------------
     |

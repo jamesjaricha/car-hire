@@ -6,8 +6,8 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: Phase 3 in progress (roles, permissions and payment records
-landed), 2026-08-05.
+Last updated: Phase 3 in progress (roles, permissions, payment records, audit
+writing and references landed), 2026-08-05.
 
 ```
 carhire/
@@ -22,6 +22,8 @@ carhire/
 │   │                                         instant so contention is real.
 │   │
 │   ├── Contracts/                            Interfaces for every domain service.
+│   │   ├── AuditLoggerContract.php           The only sanctioned writer to
+│   │   │                                     audit_log. Call it in-transaction.
 │   │   ├── AvailabilityServiceContract.php   ADVISORY ONLY — read the note inside.
 │   │   ├── BasketServiceContract.php
 │   │   ├── BookingCreationServiceContract.php
@@ -30,13 +32,17 @@ carhire/
 │   │   ├── CustomerResolverContract.php      Spec §1.4, security-critical.
 │   │   ├── PaymentDeadlineCalculatorContract.php
 │   │   ├── PaymentMethodServiceContract.php
+│   │   ├── PaymentReferenceGeneratorContract.php
 │   │   ├── PhoneNormaliserContract.php
 │   │   ├── PricingServiceContract.php
 │   │   ├── QuoteServiceContract.php
+│   │   ├── ReferenceSequenceContract.php     Gapless counter, keyed by prefix.
 │   │   ├── SettingsRepositoryContract.php
 │   │   └── VehicleHoldServiceContract.php    The only sanctioned way to claim a car.
 │   │
 │   ├── DataTransferObjects/
+│   │   ├── AuditEntry.php                    Holds values, converts nothing.
+│   │   │                                     is_automatic is DERIVED from actor.
 │   │   ├── Basket.php                        Guest basket, flattened for the session.
 │   │   ├── BookingCreationResult.php         `hold` is null for short notice.
 │   │   ├── BookingRequest.php                Carries no totals — those are derived.
@@ -51,6 +57,8 @@ carhire/
 │   │   └── TransitionContext.php             The facts a state guard checks.
 │   │
 │   ├── Enums/
+│   │   ├── AuditAction.php                   Spec §12's audited actions. Some
+│   │   │                                     are declared ahead of their phase.
 │   │   ├── BookingPaymentStatus.php          Spec §7.1 verbatim. DERIVED — never
 │   │   │                                     assign it; recompute it.
 │   │   ├── BookingStatus.php                 Spec §7.2. `Basket` never persists.
@@ -97,6 +105,7 @@ carhire/
 │   │   └── AppServiceProvider.php            Contract bindings; Eloquent strict mode.
 │   │
 │   ├── Services/
+│   │   ├── Audit/AuditLogger.php              ★   Sole writer to audit_log.
 │   │   ├── Availability/AvailabilityService.php   Search. Results are advisory.
 │   │   ├── Basket/BasketService.php               Session basket, frozen price.
 │   │   ├── Bookings/
@@ -111,7 +120,11 @@ carhire/
 │   │   │                                          comments before changing anything.
 │   │   ├── Payments/
 │   │   │   ├── PaymentDeadlineCalculator.php      Spec §8.2, incl. short notice.
-│   │   │   └── PaymentMethodService.php           Refuses disabled methods server-side.
+│   │   │   ├── PaymentMethodService.php           Refuses disabled methods server-side.
+│   │   │   └── PaymentReferenceGenerator.php      BR-00001-1, and UP-00001 for
+│   │   │                                          receipts with no booking.
+│   │   ├── References/ReferenceSequence.php       The locked counter both
+│   │   │                                          reference series share.
 │   │   ├── Pricing/
 │   │   │   ├── PricingService.php                 Class → vehicle override chain.
 │   │   │   └── QuoteService.php                   Search price == checkout price.
@@ -141,8 +154,10 @@ carhire/
 │   │                                          and the vehicle_holds foreign key.
 │   │   ├── 2026_08_05_00000{1,2}_*            the five permission tables, and
 │   │   │                                      operator_id + branch_id on users.
-│   │   └── 2026_08_05_00000{3..5}_*           bookings.payment_status, payments,
-│   │                                          payment_confirmations (unique key).
+│   │   ├── 2026_08_05_00000{3..5}_*           bookings.payment_status, payments,
+│   │   │                                      payment_confirmations (unique key).
+│   │   └── 2026_08_05_000006_*                payment method and proof columns
+│   │                                          on audit_log.
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
 │       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
@@ -164,6 +179,8 @@ carhire/
 ├── tests/
 │   ├── Feature/
 │   │   ├── AuditLogImmutabilityTest.php       Proves the DB trigger, not the model.
+│   │   ├── AuditLoggerTest.php                Every field §12 demands, in one
+│   │   │                                      entry.
 │   │   ├── AvailabilityServiceTest.php
 │   │   ├── BasketServiceTest.php              Price frozen against a rate change.
 │   │   ├── BookingConcurrencyTest.php     ★   Real processes racing a whole checkout.
@@ -174,6 +191,7 @@ carhire/
 │   │   ├── PaymentMethodServiceTest.php
 │   │   ├── PaymentModelTest.php               Proves the double-confirmation
 │   │   │                                      constraint at the database.
+│   │   ├── PaymentReferenceGeneratorTest.php  Suffixes, gaps, and the two series.
 │   │   ├── PricingServiceTest.php
 │   │   ├── QuoteServiceTest.php
 │   │   ├── RolesAndPermissionsSeederTest.php  Transcribes the §12 matrix
@@ -198,10 +216,14 @@ carhire/
 
 ## Not yet built
 
-Phase 3 is under way. Roles, permissions and the payment tables exist. Nothing
-writes to those tables yet: the reference generator, the audit writer, the
-recording and confirmation services and the expiry job are all still to come,
-as is the `refunds` table, which belongs with the Phase 4 approval workflow.
+Phase 3 is under way. Roles, permissions, the payment tables, the audit writer
+and both reference series exist. Still to come: `PaymentRecordingService`,
+the offline payment adapters, `PaymentConfirmationService` and the expiry job
+with its scheduled command. The `refunds` table belongs with the Phase 4
+approval workflow.
+
+Nothing yet creates a payment row, so nothing yet writes an audit entry outside
+its own test.
 
 Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
 notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.
