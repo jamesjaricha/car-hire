@@ -26,6 +26,12 @@ use Illuminate\Database\Eloquent\Model;
  * did it. Deriving it from `$actor` makes the two impossible to contradict; as
  * a separate flag, an entry could claim a staff member acted automatically, or
  * that a scheduled job was a person, and nothing would object.
+ *
+ * Read it as "no member of staff acted". A customer's own checkout raising a
+ * payment therefore records as automatic, which is the right answer to the
+ * question §12 is really asking — who on the payroll is accountable for this —
+ * and in any case the only one `audit_log` can express: customers are not
+ * users, so there is no third category for them to fall into.
  */
 final class AuditEntry
 {

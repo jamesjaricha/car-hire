@@ -9,6 +9,7 @@ use App\Contracts\BookingReferenceGeneratorContract;
 use App\Contracts\CustomerResolverContract;
 use App\Contracts\PaymentDeadlineCalculatorContract;
 use App\Contracts\PaymentMethodServiceContract;
+use App\Contracts\PaymentRecordingServiceContract;
 use App\Contracts\QuoteServiceContract;
 use App\Contracts\VehicleHoldServiceContract;
 use App\DataTransferObjects\BookingCreationResult;
@@ -53,6 +54,7 @@ final class BookingCreationService implements BookingCreationServiceContract
         private readonly CustomerResolverContract $customers,
         private readonly VehicleHoldServiceContract $holds,
         private readonly BookingReferenceGeneratorContract $references,
+        private readonly PaymentRecordingServiceContract $payments,
     ) {}
 
     public function create(BookingRequest $request): BookingCreationResult
@@ -174,11 +176,25 @@ final class BookingCreationService implements BookingCreationServiceContract
                 $hold->forceFill(['booking_id' => $booking->getKey()])->save();
             }
 
+            // 7. The receipt the customer is now waiting to settle. Spec §14.3
+            //    requires one for every offline booking, along with its own
+            //    unique payment reference — including a short-notice booking,
+            //    which places no hold but still leaves the customer with
+            //    something to pay and a number to quote when they do.
+            //
+            //    Raised last because it derives its expected amount from the
+            //    booking row, and inside the transaction so that a failure here
+            //    takes the booking and the hold with it rather than leaving a
+            //    vehicle claimed against a booking nobody was ever asked to pay
+            //    for.
+            $payment = $this->payments->raiseForBooking($booking, $method);
+
             return new BookingCreationResult(
                 booking: $booking,
                 quote: $quote,
                 customerResolution: $resolution,
                 paymentWindow: $window,
+                payment: $payment,
                 hold: $hold,
             );
         }, attempts: 3);

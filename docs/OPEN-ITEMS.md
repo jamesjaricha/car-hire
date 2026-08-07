@@ -103,11 +103,32 @@ nullable `branches.counter_clerk_may_confirm_cash` inheriting the global default
 when null — deliberately not built yet, because the business has not decided
 whether it wants the distinction at all. Due with the roles UI.
 
-**Two §12 permissions were placed by judgement, not by specification.**
-`payments.edit-manual-payment` and `bookings.override-short-notice` appear in the
-§12 permission list but have no row in the §12 matrix. Both are currently
-granted to Branch Manager and above. Confirm with the operator; it is a one-line
-seeder change either way.
+**Three §12 permission decisions were made by judgement, not by specification.**
+
+1. `payments.edit-manual-payment` and 2. `bookings.override-short-notice` appear
+in the §12 permission list but have no row in the §12 matrix, so the spec never
+says who holds them. Both are currently granted to Branch Manager and above,
+on the reasoning that each is a correction to or an exception from the automatic
+path — the same shape as extending a deadline, which the matrix does place
+there.
+
+3. §12 has no permission for *recording* a payment at all. Keying money in by
+hand — the unmatched receipts queue — is guarded by
+`payments.edit-manual-payment`, which is the nearest thing on the list. The
+consequence is that **counter clerks cannot record an unattributed receipt**,
+only branch managers and above. If clerks are the people who will actually be
+watching the till, this is the wrong way round and should be changed.
+
+All three are one-line seeder changes. Confirm with the operator.
+
+**Payment method account details are empty.** `PaymentMethodSeeder` leaves
+`account_details` null on every method, deliberately — real bank account and
+merchant numbers are operator data and do not belong in source control. Until
+they are entered, bank transfer and mobile money instructions render with blanks
+where the account and till numbers should be, and
+`PaymentAdapter::isConfigured()` reports false. The admin panel must surface
+that; a customer being told to transfer money to nowhere is worse than the
+method being switched off. Due with the payment methods screen in Phase 4.
 
 **KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
 KYC verified, balance settled and security deposit recorded. The latter two are

@@ -40,6 +40,20 @@ final class PaymentMethodNotAvailableException extends DomainException
         ));
     }
 
+    /**
+     * No adapter knows how to handle this method.
+     *
+     * Today that means one of the card methods. It is a refusal rather than a
+     * gap: building an adapter that resolves cleanly and does nothing is how a
+     * card payment would one day appear to have been taken.
+     */
+    public static function noAdapter(string $code): self
+    {
+        return new self(
+            "The payment method [{$code}] cannot be processed: no provider is configured for it."
+        );
+    }
+
     public static function insufficientLeadTime(string $code, int $requiredHours): self
     {
         return new self(sprintf(

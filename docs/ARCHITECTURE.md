@@ -394,6 +394,33 @@ alongside the receipt freezes the comparison at the moment it was made.
 An unmatched receipt has no expectation and therefore cannot be short. It is not
 missing money; it is money nobody has attributed yet.
 
+### Unpaid is not underpaid
+
+`hasShortfall()` is false when nothing has arrived. Every receipt starts at zero
+against its full expected amount, so a literal comparison would report every
+unpaid booking as short by its entire total, and the queue that exists to catch
+customers who sent too little would be full of customers who have not sent
+anything. Those need different responses — one is chased, the other reconciled.
+An unmatched receipt is likewise never short: with no booking, nothing was ever
+asked for.
+
+### What the adapter interface is and is not
+
+Spec §4 requires every provider to be reached through one interface so that a
+gateway can be added later without touching checkout or booking logic. The
+interface therefore carries only what the four offline providers genuinely
+answer differently: what the operator must configure, whether a person must
+confirm, and what the customer is told.
+
+There is no `charge()` and no webhook handling, because the guideline forbids
+stubs beyond the interface and a wider interface would mean four classes of
+`throw new NotImplementedException` — worse than no interface at all. The
+interface widens when a real gateway exists to check it against.
+
+The card methods have no adapter, and asking for one raises. That is the correct
+answer rather than a gap: an adapter that resolves cleanly and does nothing is
+how a card payment eventually appears to have been taken.
+
 ### `amount_paid` is recomputed, never incremented
 
 Adding to a running total is wrong the first time anything is confirmed twice,

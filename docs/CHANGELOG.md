@@ -5,6 +5,104 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 3 (in progress) — Payment adapters and recording · 2026-08-05
+
+A booking now produces a real payment record. Nothing confirms one yet.
+
+### Added
+
+**Domain**
+- `PaymentAdapterContract` and four offline implementations — cash, bank
+  transfer, MTN, Airtel. Spec §4's "common adapter interface so a gateway can
+  later be added without touching the checkout UI or booking logic".
+- `PaymentAdapterResolver` — the one place a method code becomes behaviour.
+- `PaymentRecordingService` — raises the receipt a booking waits on, and
+  records money that arrived without one.
+- `StaffPermissionDeniedException`, `PaymentNotRecordableException`.
+
+**Changed**
+- `BookingCreationService` raises a payment inside its existing transaction, and
+  `BookingCreationResult` gained a non-nullable `payment`. Spec §14.3 requires
+  every offline booking to produce a payment record and a unique reference,
+  short-notice bookings included — no hold is placed for those, but the customer
+  still has something to pay and a number to quote when they walk in.
+
+**Tests** — 288 passing, up from 253.
+
+### Two bugs the tests caught
+
+Both were the implementation disagreeing with its own docblock, which is the
+useful kind of disagreement to find in a test run rather than in a queue.
+
+**A freshly raised receipt reported itself as short by the whole booking.**
+`hasShortfall()` compared `amount` against `expected_amount` literally, and a
+receipt starts at zero against the full total. Every unpaid booking would have
+appeared in the queue meant for customers who sent too little. Unpaid is chased;
+underpaid is reconciled — different problems, and the queue for the second is
+useless when it is full of the first. A receipt with nothing against it is no
+longer short; one ngwee in, it is.
+
+**A missing account detail rendered as `:account_number` on the customer's
+screen.** The merge map only carried keys that existed. Required details are now
+seeded as empty strings first, with real values overwriting them. Deliberately
+narrow: a placeholder the adapter does not declare is left exactly as written,
+because stripping anything shaped like `:word` means guessing at operator copy,
+and guessing wrong deletes text from a customer's instructions with nothing to
+show it happened. There is a test on each side of that line.
+
+### Decisions
+
+- **The adapter interface carries only what the four offline providers genuinely
+  answer differently.** No `charge()`, no `redirectUrl()`, no webhooks. The
+  guideline says not to build stubs beyond the interface, and a wider interface
+  would mean four classes of `throw new NotImplementedException`, which is worse
+  than no interface at all. When a gateway arrives, that is the moment to widen
+  it — with a real implementation in hand to check it against.
+
+- **Card methods have no adapter, and asking for one is refused.** A stub would
+  resolve cleanly and do nothing, which is how a card payment comes to look as
+  though it had been taken.
+
+- **MTN and Airtel are separate classes despite behaving identically today.**
+  They are separate businesses with separate merchant numbers, separate
+  statements and separate reconciliation. The first to gain an API needs its own
+  adapter regardless, and splitting one class in two at that point is a worse
+  job than having two now. They do share one §12 permission, because the access
+  needed to verify either is the same.
+
+- **Recording never touches the booking's payment position.** `amount_paid`,
+  `balance_due` and `payment_status` are recomputed together from confirmed
+  receipts only. A convenient update from the recording service would be exactly
+  the second writer that makes that guarantee untrue.
+
+- **Money is formatted for customers without ever becoming a float.**
+  `number_format()` takes one, so instructions carry no thousands separators —
+  "ZMW 1155.00". A customer copying a figure into a banking app does not want
+  commas in it anyway.
+
+- **A customer's own checkout records as `is_automatic = true`.** `audit_log`
+  has `actor_user_id` and a manual/automatic flag, and customers are not users,
+  so there is no third category. "No member of staff acted" is the honest
+  reading and the one §12 is really asking about — who on the payroll is
+  accountable.
+
+- **Keying in a payment requires `payments.edit-manual-payment`.** §12 has no
+  "record a payment" permission; that is the nearest, and it means counter
+  clerks cannot fill the unmatched queue. The alternatives are worse: any
+  authenticated user, or nobody at all. Third such judgement call, all three
+  logged in OPEN-ITEMS.md.
+
+### Known gaps
+
+- Nothing confirms a payment yet, so no booking has ever moved out of
+  `pending_payment` by paying.
+- An unmatched receipt can be recorded but not yet attributed to a booking.
+- `account_details` is empty for every method, so bank and mobile money
+  instructions render with blanks where the account and merchant numbers belong.
+  Operator data, entered through the admin panel; now tracked in OPEN-ITEMS.md.
+
+---
+
 ## Phase 3 (in progress) — Audit writing and payment references · 2026-08-05
 
 The two things every remaining service in this phase depends on.

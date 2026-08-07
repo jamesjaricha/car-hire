@@ -7,7 +7,7 @@ rather than listed.
 ★ marks the files to read first if you are trying to understand how this works.
 
 Last updated: Phase 3 in progress (roles, permissions, payment records, audit
-writing and references landed), 2026-08-05.
+writing, references, adapters and recording landed), 2026-08-05.
 
 ```
 carhire/
@@ -31,7 +31,12 @@ carhire/
 │   │   ├── BookingStateMachineContract.php
 │   │   ├── CustomerResolverContract.php      Spec §1.4, security-critical.
 │   │   ├── PaymentDeadlineCalculatorContract.php
+│   │   ├── PaymentAdapterContract.php        Spec §4. Only what the four
+│   │   │                                     offline providers differ on.
+│   │   ├── PaymentAdapterResolverContract.php
 │   │   ├── PaymentMethodServiceContract.php
+│   │   ├── PaymentRecordingServiceContract.php   Writes receipts. Never
+│   │   │                                         confirms them.
 │   │   ├── PaymentReferenceGeneratorContract.php
 │   │   ├── PhoneNormaliserContract.php
 │   │   ├── PricingServiceContract.php
@@ -119,8 +124,17 @@ carhire/
 │   │   ├── Holds/VehicleHoldService.php       ★   The heart of the system. Read the
 │   │   │                                          comments before changing anything.
 │   │   ├── Payments/
+│   │   │   ├── Adapters/                          One per offline provider.
+│   │   │   │   ├── OfflinePaymentAdapter.php      Merge fields; account checks.
+│   │   │   │   ├── CashAdapter.php                Needs no configuration.
+│   │   │   │   ├── BankTransferAdapter.php
+│   │   │   │   ├── MtnMomoAdapter.php             NOT a gateway. Spec §3.1.
+│   │   │   │   └── AirtelMoneyAdapter.php
+│   │   │   ├── PaymentAdapterResolver.php         Cards resolve to a refusal.
 │   │   │   ├── PaymentDeadlineCalculator.php      Spec §8.2, incl. short notice.
 │   │   │   ├── PaymentMethodService.php           Refuses disabled methods server-side.
+│   │   │   ├── PaymentRecordingService.php    ★   Raises receipts. Touches the
+│   │   │   │                                      booking's totals never.
 │   │   │   └── PaymentReferenceGenerator.php      BR-00001-1, and UP-00001 for
 │   │   │                                          receipts with no booking.
 │   │   ├── References/ReferenceSequence.php       The locked counter both
@@ -189,8 +203,12 @@ carhire/
 │   │   ├── CustomerResolverTest.php           Spec §1.4 in full.
 │   │   ├── PaymentDeadlineCalculatorTest.php
 │   │   ├── PaymentMethodServiceTest.php
+│   │   ├── PaymentAdapterTest.php             Resolution, configuration and
+│   │   │                                      merge-field rendering.
 │   │   ├── PaymentModelTest.php               Proves the double-confirmation
 │   │   │                                      constraint at the database.
+│   │   ├── PaymentRecordingServiceTest.php    Raising, unmatched receipts,
+│   │   │                                      and every refusal.
 │   │   ├── PaymentReferenceGeneratorTest.php  Suffixes, gaps, and the two series.
 │   │   ├── PricingServiceTest.php
 │   │   ├── QuoteServiceTest.php
@@ -216,14 +234,17 @@ carhire/
 
 ## Not yet built
 
-Phase 3 is under way. Roles, permissions, the payment tables, the audit writer
-and both reference series exist. Still to come: `PaymentRecordingService`,
-the offline payment adapters, `PaymentConfirmationService` and the expiry job
-with its scheduled command. The `refunds` table belongs with the Phase 4
-approval workflow.
+Phase 3 is under way. A booking now creates a real payment record with its own
+reference, and writes an audit entry when it does.
 
-Nothing yet creates a payment row, so nothing yet writes an audit entry outside
-its own test.
+Still to come in this phase: `PaymentConfirmationService` — with the two-process
+double-confirmation test that is the whole point of the
+`payment_confirmations` unique key — matching an unmatched receipt to a booking,
+and the expiry job with its scheduled command.
+
+The `refunds` table belongs with the Phase 4 approval workflow. Nothing has
+confirmed a payment yet, so no booking has ever left `pending_payment` by
+paying.
 
 Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
 notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.

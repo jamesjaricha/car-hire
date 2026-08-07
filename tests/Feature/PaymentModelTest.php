@@ -107,6 +107,35 @@ final class PaymentModelTest extends TestCase
     }
 
     /**
+     * Unpaid is not underpaid.
+     *
+     * Every booking awaiting payment starts at zero against its full expected
+     * amount, so a literal comparison reports every one of them as short by its
+     * entire total. "The customer has not paid" is chased; "the customer sent
+     * too little" is reconciled. They are different problems, and the queue
+     * that exists to catch the second is useless if it is full of the first.
+     */
+    public function test_a_receipt_with_nothing_against_it_is_unpaid_not_short(): void
+    {
+        $awaiting = Payment::factory()->create([
+            'expected_amount' => '1155.00',
+            'amount' => '0.00',
+        ]);
+
+        $this->assertFalse($awaiting->hasShortfall());
+        $this->assertSame('0.00', $awaiting->shortfallAmount());
+
+        // One ngwee in, however, and it is genuinely short.
+        $barelyPaid = Payment::factory()->create([
+            'expected_amount' => '1155.00',
+            'amount' => '0.01',
+        ]);
+
+        $this->assertTrue($barelyPaid->hasShortfall());
+        $this->assertSame('1154.99', $barelyPaid->shortfallAmount());
+    }
+
+    /**
      * An unmatched receipt has no expectation to fall short of. It is money
      * nobody has attributed, not money that is missing.
      */

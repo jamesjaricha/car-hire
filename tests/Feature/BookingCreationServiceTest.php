@@ -15,6 +15,7 @@ use App\Enums\BookingStatus;
 use App\Enums\CustomerResolutionOutcome;
 use App\Enums\InsurancePriceMode;
 use App\Enums\PaymentMethodCode;
+use App\Enums\PaymentStatus;
 use App\Exceptions\BookingNotPossibleException;
 use App\Exceptions\PaymentMethodNotAvailableException;
 use App\Exceptions\VehicleNotAvailableException;
@@ -360,6 +361,101 @@ final class BookingCreationServiceTest extends TestCase
     private function hireWindow(): DateRange
     {
         return DateRange::of($this->now->addDays(7), $this->now->addDays(10));
+    }
+
+    // --- The payment record (spec §14.3) ---------------------------------
+
+    public function test_a_payment_record_and_a_unique_reference_come_with_the_booking(): void
+    {
+        // "Any offline method creates a booking in pending_payment, a payment
+        // record in awaiting_payment, and a unique payment reference."
+        $result = $this->bookings->create($this->request());
+
+        $payment = $result->payment;
+
+        $this->assertSame(PaymentStatus::AwaitingPayment, $payment->status);
+        $this->assertSame($result->booking->getKey(), $payment->booking_id);
+        $this->assertSame($result->booking->operator_id, $payment->operator_id);
+        $this->assertSame('BR-00001-1', $payment->payment_reference);
+        $this->assertSame(PaymentMethodCode::BankTransfer, $payment->payment_method_code);
+
+        // Raising a receipt is not receiving money.
+        $this->assertSame('0.00', $payment->amount);
+        $this->assertNull($payment->recorded_by_user_id);
+
+        $this->assertDatabaseCount('payments', 1);
+    }
+
+    public function test_a_deposit_booking_expects_the_deposit_amount(): void
+    {
+        $result = $this->bookings->create($this->request(payInFull: false));
+
+        $this->assertTrue($result->payment->is_deposit);
+        $this->assertSame('1155.00', $result->payment->expected_amount);
+    }
+
+    public function test_paying_in_full_expects_the_whole_total(): void
+    {
+        $result = $this->bookings->create($this->request(payInFull: true));
+
+        $this->assertFalse($result->payment->is_deposit);
+        $this->assertSame('2310.00', $result->payment->expected_amount);
+    }
+
+    public function test_a_short_notice_booking_still_gets_a_payment_record(): void
+    {
+        // No hold is placed, but the customer still has something to pay and a
+        // number to quote when they walk in. Spec §14.3 makes no exception.
+        $result = $this->bookings->create($this->request(
+            range: DateRange::of($this->now->addHours(3), $this->now->addDays(3)),
+            paymentMethodCode: 'cash',
+        ));
+
+        $this->assertFalse($result->vehicleIsHeld());
+        $this->assertSame('BR-00001-1', $result->payment->payment_reference);
+        $this->assertSame(PaymentMethodCode::Cash, $result->payment->payment_method_code);
+    }
+
+    public function test_raising_the_payment_is_audited(): void
+    {
+        $result = $this->bookings->create($this->request());
+
+        // `is_automatic` is true because no STAFF member acted — the customer's
+        // own checkout raised this. Customers are not users, so `audit_log` has
+        // no third category to put them in, and "a person on the payroll did
+        // this" is the distinction spec §12 actually cares about.
+        $this->assertDatabaseHas('audit_log', [
+            'action' => 'payment.recorded',
+            'booking_id' => $result->booking->getKey(),
+            'payment_reference' => 'BR-00001-1',
+            'payment_method_code' => 'bank_transfer',
+            'actor_user_id' => null,
+            'is_automatic' => true,
+        ]);
+    }
+
+    /**
+     * A failure after the booking row is written must take the payment with it,
+     * and vice versa. Otherwise a vehicle sits claimed against a booking nobody
+     * was ever asked to pay for.
+     */
+    public function test_a_failed_booking_leaves_no_payment_behind(): void
+    {
+        app(VehicleHoldServiceContract::class)->place(
+            $this->vehicle,
+            $this->hireWindow(),
+            $this->now->addHours(24),
+        );
+
+        try {
+            $this->bookings->create($this->request());
+            $this->fail('The booking should have been refused.');
+        } catch (VehicleNotAvailableException) {
+            // Expected.
+        }
+
+        $this->assertDatabaseCount('bookings', 0);
+        $this->assertDatabaseCount('payments', 0);
     }
 
     private function request(

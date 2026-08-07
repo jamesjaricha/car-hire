@@ -118,12 +118,27 @@ final class Payment extends Model
     /**
      * Whether less arrived than was asked for.
      *
-     * An unmatched receipt has no expectation to fall short of, so it never
-     * counts as a shortfall — it is simply money nobody has attributed yet.
+     * Two cases are deliberately NOT shortfalls, and both would otherwise fill
+     * a staff queue with rows that need no action:
+     *
+     * An unmatched receipt has no expectation to fall short of. It is money
+     * nobody has attributed yet, not money that is missing.
+     *
+     * A receipt with nothing against it is unpaid, not underpaid. Every booking
+     * awaiting payment starts at zero against its full expected amount, so a
+     * literal comparison would report every unpaid booking as short by its
+     * entire total. "The customer has not paid" and "the customer sent too
+     * little" are different problems with different responses — one is chased,
+     * the other is reconciled — and the queue that exists to catch the second
+     * is useless if it is full of the first.
      */
     public function hasShortfall(): bool
     {
         if ($this->expected_amount === null) {
+            return false;
+        }
+
+        if (! Money::isPositive($this->amount)) {
             return false;
         }
 
