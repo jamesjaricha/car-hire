@@ -5,6 +5,73 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — The booking screens · 2026-08-05
+
+The first resource in the panel, and the queue the whole slice was for.
+
+### Added
+
+- `BookingResource` — read-only, with tabs: All, Awaiting payment, **Needs a
+  decision**, Confirmed, Collecting soon.
+- `BookingPolicy` — `create`, `update` and `delete` all return false.
+- `ExtendDeadlineAction` and `TakeBalanceAction`, both calling the services
+  committed in `7e19de3`.
+- `BookingInfolist` — one booking, with the two deposits deliberately in
+  separate sections.
+
+**Tests** — 392 passing, up from 379.
+
+### Decisions
+
+- **Read-only is enforced by the policy, not by convention.** Filament reads
+  policies to decide which buttons to render, so returning false from `create`,
+  `update` and `delete` both hides those controls and refuses them. That matters
+  more than it looks: ARCHITECTURE §11 says bookings get no forms, and a rule
+  kept only in a docblock is one `make:filament-resource` away from being broken
+  by somebody in a hurry. There are tests asserting the pages are only `index`
+  and `view`, and that `/admin/bookings/create` and `.../edit` 404.
+
+- **The queue tab is gated on `payments.extend-deadline`, not on a role name.**
+  You see the queue if you can act on it. Gating on a role would duplicate §12's
+  matrix in the UI, and the two would drift.
+
+- **Counter clerks still see the booking list.** The decision was about who sees
+  the *queue*; locking clerks out of bookings entirely would stop them serving
+  customers at the desk, which §12 plainly intends them to do. They hold
+  `payments.view`, so they get the list and not the queue.
+
+- **The amount at the counter is typed, not assumed.** The field defaults to the
+  outstanding balance and stays editable, because customers hand over the wrong
+  figure and the system must record what actually changed hands. The shortfall is
+  reported back exactly as it would be for a transfer.
+
+- **Domain exceptions become notifications; everything else bubbles.** A
+  `DeadlineNotExtendableException` is a sentence for the person at the screen. A
+  `QueryException` is a bug for us. Catching both and flattening them into the
+  same red toast is how real faults get mistaken for user error, so the actions
+  catch only the domain exceptions by name.
+
+- **Actions are hidden where they cannot succeed** — no extend button on a
+  confirmed booking, no take-payment button on a cancelled one or where nothing
+  is owed. The services refuse these cases regardless; hiding the button stops
+  staff learning a rule by being told no.
+
+- **No branch scoping.** Everyone who can see a screen sees every branch's
+  records. §12 scopes actions per branch, never visibility. Recorded in
+  OPEN-ITEMS as a decision to revisit rather than an omission.
+
+### Notes for whoever adds the next resource
+
+Filament 5 moved things. Verified against the installed source rather than
+remembered: all actions live in `Filament\Actions\*`, tables use
+`->recordActions()` and `->toolbarActions()`, list-page tabs are
+`Filament\Schemas\Components\Tabs\Tab` with `modifyQueryUsing()`, `Section` is in
+`Filament\Schemas\Components`, and in tests a row action is targeted with
+`TestAction::make('name')->table($record)` — `callAction()` takes no `record`
+argument.
+
+---
+
 ## Phase 4 — Deadline extension and counter payments · 2026-08-05
 
 The two service capabilities the stalled-bookings queue needs. No UI yet — this

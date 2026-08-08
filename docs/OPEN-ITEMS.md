@@ -122,7 +122,25 @@ reasoning rather than rediscover the discrepancy.
    and "change what was already recorded" as separate powers. **Counter Clerk
    and above.**
 
-**Part-paid bookings past their deadline have no screen.** The expiry sweep
+**Panel data is not scoped to a user's branch.** Decided 2026-08-05: everyone
+who can see a screen sees every branch's records. Spec §12 scopes *actions* per
+branch, never visibility, and there is one operator — so scoping now would mean
+inventing a rule the business has not asked for. It is recorded here as a
+decision rather than an omission.
+
+Worth revisiting before launch, and cheaper to add than to explain: a Branch
+Manager in Lusaka can currently see Livingstone's takings. If the operator wants
+that limited, note that one-way hires span two branches, so "their branch" needs
+defining before it can be built — pickup, drop-off, or either.
+
+**Part-paid bookings past their deadline now have a screen.** `BookingResource`
+tab "Needs a decision", visible to anyone holding `payments.extend-deadline`.
+Two of the three ways to resolve one exist: extend the deadline, or take the
+balance. **The third — cancel with a refund — still does not**, because there is
+no refunds table. Until it lands, a booking whose customer wants their money
+back has no route through the panel at all.
+
+**Superseded: part-paid bookings past their deadline have no screen.** The expiry sweep
 deliberately refuses to cancel a booking holding the customer's money — spec
 §8.4 assumes nothing was received, and spec §9.3 wants two people on any refund,
 neither of whom is a cron job. `Booking::scopeStalledAfterDeadline()` is the

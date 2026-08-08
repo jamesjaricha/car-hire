@@ -418,6 +418,20 @@ So:
 This is more work than `make:filament-resource`, and it is the reason Phase 4 is
 built rather than generated.
 
+### The policy is what enforces it
+
+`BookingPolicy` returns false for `create`, `update` and `delete`. Filament
+reads policies to decide which controls to render, so this both hides those
+buttons and refuses them if they are reached another way.
+
+That distinction is the whole point. A rule kept in a docblock survives exactly
+as long as everyone reads the docblock; a rule in a policy survives somebody
+running `make:filament-resource Booking` next year and wiring up the form it
+generates. The resource also declares only `index` and `view` pages, so the
+routes do not exist either — and there are tests for both.
+
+Apply the same shape to `payments` and `audit_log` when those resources arrive.
+
 ### The panel gate is not the permission model
 
 `User::canAccessPanel()` asks one question: is this person staff at all. It

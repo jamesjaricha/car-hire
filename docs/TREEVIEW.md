@@ -109,6 +109,25 @@ carhire/
 │   │   ├── VehicleClass.php                  Carries the pricing.
 │   │   └── VehicleHold.php                   Only VehicleHoldService writes here.
 │   │
+│   ├── Filament/
+│   │   └── Resources/Bookings/           ★   READ-ONLY. No form, no create or
+│   │       │                                 edit page. See BookingPolicy.
+│   │       ├── BookingResource.php
+│   │       ├── Actions/                      Every mutation lives here, and
+│   │       │   ├── ExtendDeadlineAction.php  each one calls a service. Domain
+│   │       │   └── TakeBalanceAction.php     exceptions become notifications;
+│   │       │                                 anything else is left to bubble.
+│   │       ├── Pages/
+│   │       │   ├── ListBookings.php          Tabs. "Needs a decision" is the
+│   │       │   │                             part-paid queue.
+│   │       │   └── ViewBooking.php
+│   │       ├── Schemas/BookingInfolist.php   The two deposits, kept apart.
+│   │       └── Tables/BookingsTable.php
+│   │
+│   ├── Policies/
+│   │   └── BookingPolicy.php             ★   create/update/delete all false.
+│   │                                         This is what makes read-only real.
+│   │
 │   ├── Providers/
 │   │   ├── AppServiceProvider.php            Contract bindings; Eloquent strict mode.
 │   │   └── Filament/
@@ -210,6 +229,9 @@ carhire/
 │
 ├── tests/
 │   ├── Feature/
+│   │   ├── Filament/
+│   │   │   └── BookingResourceTest.php    ★   Proves read-only is enforced,
+│   │   │                                      not merely intended.
 │   │   ├── AdminPanelAccessTest.php           Who may open /admin at all.
 │   │   ├── AuditLogImmutabilityTest.php       Proves the DB trigger, not the model.
 │   │   ├── AuditLoggerTest.php                Every field §12 demands, in one
