@@ -34,6 +34,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Terms and Conditions Version
+    |--------------------------------------------------------------------------
+    |
+    | Recorded on every booking alongside the moment the customer accepted it,
+    | so that a dispute can be answered with the wording they actually agreed to
+    | rather than whatever is on the site today. Bump this whenever the terms
+    | change; existing bookings keep the version they were made under.
+    |
+    */
+
+    'terms_version' => env('CARHIRE_TERMS_VERSION', '2026-08-01'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Phone Region
     |--------------------------------------------------------------------------
     |

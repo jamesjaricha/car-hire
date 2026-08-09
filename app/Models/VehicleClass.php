@@ -32,6 +32,7 @@ final class VehicleClass extends Model
         'name',
         'slug',
         'description',
+        'image_paths',
         'daily_rate',
         'insurance_price',
         'insurance_price_mode',
@@ -45,6 +46,7 @@ final class VehicleClass extends Model
     protected function casts(): array
     {
         return [
+            'image_paths' => 'array',
             'daily_rate' => 'decimal:2',
             'insurance_price' => 'decimal:2',
             'insurance_price_mode' => InsurancePriceMode::class,
@@ -92,6 +94,37 @@ final class VehicleClass extends Model
         'insurance_price' => 'Damage waiver price (spec §10, §15.3)',
         'insurance_excess_amount' => 'Insurance excess (spec §10, §15.4)',
     ];
+
+    /**
+     * The photograph a card or a hero should use, or null.
+     *
+     * Null is an ordinary answer, not a missing asset: the customer-facing
+     * design is built to work without photographs and treats one as an
+     * improvement. Callers render an illustrated silhouette instead.
+     *
+     * When per-vehicle photographs arrive this is where the fallback chain
+     * grows — vehicle first, then class, then silhouette — and nothing above it
+     * needs to change.
+     */
+    public function primaryImagePath(): ?string
+    {
+        $paths = array_values(array_filter($this->image_paths ?? []));
+
+        return $paths[0] ?? null;
+    }
+
+    public function hasImages(): bool
+    {
+        return $this->primaryImagePath() !== null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function imagePaths(): array
+    {
+        return array_values(array_filter($this->image_paths ?? []));
+    }
 
     /**
      * Whether this class can lawfully be sold.

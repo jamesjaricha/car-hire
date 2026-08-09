@@ -2,8 +2,207 @@
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
+
+/*
+| Design tokens
+|--------------------------------------------------------------------------
+|
+| Booking blue as the primary, because it is the convention every customer
+| already knows from booking a flight or a hotel — nothing here should need to
+| be learned. The Zambian flag colours appear as restrained accents rather than
+| large fields: the flag's green doubles as the "available / confirmed" state
+| the interface needed anyway, and its orange marks a small number of highlights.
+|
+| WHY THE MONEY SURFACES ARE A DIFFERENT COLOUR
+|
+| This operator has no card gateway. A customer transfers real money to an
+| account number and then waits for a person to verify it, so checkout and
+| confirmation deliberately shift to `--color-ink` — heavier, quieter, closer to
+| a receipt than to a shop. Browsing should feel easy; paying should feel
+| serious. See docs/ARCHITECTURE.md.
+|
+| Every colour is a token. The operator has no brand yet, so swapping in real
+| ones later is a change here rather than a rebuild.
+*/
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Lexend', ui-sans-serif, system-ui, sans-serif;
+
+    /*
+    | Motion
+    |----------------------------------------------------------------------
+    |
+    | The built-in CSS easings are too weak to feel intentional. These are
+    | the stronger variants.
+    |
+    | `ease-in` is deliberately absent. It starts slow, which delays movement
+    | at exactly the moment the user is watching most closely, and makes an
+    | interface feel sluggish at the same duration.
+    |
+    | Entering and exiting use ease-out. Things moving on screen use
+    | ease-in-out. Nothing here runs longer than 300ms, because a 180ms
+    | dropdown feels more responsive than a 400ms one — and this site asks
+    | people to part with money, where hesitation is expensive.
+    */
+    --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+
+    /* Primary — booking blue. */
+    --color-brand-50: #f0f9ff;
+    --color-brand-100: #e0f2fe;
+    --color-brand-200: #bae6fd;
+    --color-brand-300: #7dd3fc;
+    --color-brand-400: #38bdf8;
+    --color-brand-500: #0ea5e9;
+    --color-brand-600: #0284c7;
+    --color-brand-700: #0369a1;
+    --color-brand-800: #075985;
+    --color-brand-900: #0c4a6e;
+    --color-brand-950: #082f49;
+
+    /* Zambian flag green. Doubles as available / confirmed. */
+    --color-veld-50: #f0fdf4;
+    --color-veld-100: #dcfce7;
+    --color-veld-500: #22c55e;
+    --color-veld-600: #16a34a;
+    --color-veld-700: #15803d;
+    --color-veld-900: #14532d;
+
+    /* Zambian flag orange. Highlights only — never a large field. */
+    --color-ember-100: #ffedd5;
+    --color-ember-500: #f97316;
+    --color-ember-600: #ea580c;
+    --color-ember-700: #c2410c;
+
+    /* The money surfaces. */
+    --color-ink-50: #f8fafc;
+    --color-ink-100: #f1f5f9;
+    --color-ink-200: #e2e8f0;
+    --color-ink-300: #cbd5e1;
+    --color-ink-400: #94a3b8;
+    --color-ink-500: #64748b;
+    --color-ink-600: #475569;
+    --color-ink-700: #334155;
+    --color-ink-800: #1e293b;
+    --color-ink-900: #0f172a;
+    --color-ink-950: #020617;
+
+    --color-danger-50: #fef2f2;
+    --color-danger-100: #fee2e2;
+    --color-danger-600: #dc2626;
+    --color-danger-700: #b91c1c;
+}
+
+/*
+| Prices, references and dates use tabular figures.
+|--------------------------------------------------------------------------
+|
+| Proportional digits make a column of prices ripple as the numbers change, and
+| a booking reference read aloud over the telephone is easier to follow when
+| every character occupies the same width.
+*/
+.tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+}
+
+/*
+| Press feedback
+|--------------------------------------------------------------------------
+|
+| Anything pressable scales down slightly while held. It is the cheapest way
+| to make an interface feel like it is listening, and its absence is felt
+| even when its presence is not noticed.
+|
+| Only `transform` is transitioned — never `all`, which would drag colour,
+| shadow and layout through the same curve and cost paint work per frame.
+|
+| The hover lift sits behind a pointer query because a touch device fires
+| hover on tap, leaving the raised state stuck after the finger lifts.
+*/
+.pressable {
+    transition: transform 160ms var(--ease-out-strong);
+}
+
+.pressable:active {
+    transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .liftable {
+        transition:
+            transform 200ms var(--ease-out-strong),
+            box-shadow 200ms var(--ease-out-strong);
+    }
+
+    .liftable:hover {
+        transform: translateY(-2px);
+    }
+}
+
+/*
+| Entrance
+|--------------------------------------------------------------------------
+|
+| Search results and fleet cards arrive together, so they are staggered by a
+| few tens of milliseconds each. Longer than about 80ms and the list feels
+| slow rather than considered.
+|
+| It starts at scale(0.98) rather than 0 — nothing in the real world appears
+| out of nothing, and a card that grows from a point reads as a gimmick. The
+| delays stop after a handful of items: by then the effect has registered,
+| and staggering a twentieth card only delays somebody reading it.
+*/
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.rise {
+    animation: rise 320ms var(--ease-out-strong) both;
+}
+
+.rise:nth-child(2) { animation-delay: 45ms; }
+.rise:nth-child(3) { animation-delay: 90ms; }
+.rise:nth-child(4) { animation-delay: 135ms; }
+.rise:nth-child(n + 5) { animation-delay: 180ms; }
+
+/*
+| Respect a stated preference for less motion.
+|--------------------------------------------------------------------------
+|
+| Reduced, not removed. The usual blanket rule sets every duration to 0.01ms,
+| which also kills the colour and opacity changes that tell somebody a button
+| registered their press or a field failed validation — comprehension aids,
+| not decoration.
+|
+| So movement goes and fading stays: no rise, no lift, no press scale, but
+| still a visible response to every interaction. Nothing on this site conveys
+| meaning through motion alone, which is what makes that safe.
+*/
+@media (prefers-reduced-motion: reduce) {
+    .rise {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+
+    .pressable:active,
+    .liftable:hover {
+        transform: none;
+    }
+
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+    }
 }

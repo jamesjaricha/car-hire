@@ -5,6 +5,116 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 5 — The customer site begins · 2026-08-09
+
+First customer-facing code in the project. Until now the platform could take a
+booking through services and show it to staff, but no member of the public could
+reach any of it.
+
+Built to be shown to the operator, who will decide from it whether these modules
+are what he wants. That is why this arrived ahead of the remaining Phase 4
+back-office screens.
+
+### Added
+
+- **Public layout, home page and search results.** A guest can search a branch
+  and dates and see real, priced vehicles without entering a single personal
+  detail (spec §1.1).
+- **`HomeController`, `SearchController`**, both thin — pricing is
+  `QuoteService`, availability is `AvailabilityService`, exactly as before.
+- **Design tokens** in `resources/css/app.css`: booking blue primary, Zambian
+  flag green doubling as the available/confirmed state, flag orange for small
+  highlights, and a separate `ink` scale for the money surfaces.
+- **`image_paths` on `vehicle_classes`** with a reorderable Filament upload, so
+  the operator can add photographs like any CMS.
+
+### Decisions
+
+- **The design works without photographs.** Most small operators have none, and
+  a card built around a missing image looks broken rather than sparse. Vehicle
+  cards are built from typography and specification chips with an illustrated
+  silhouette; a photograph is an improvement layered on top. The fallback chain
+  is class photograph then silhouette, shaped so per-vehicle photographs can be
+  inserted ahead of the class later without the markup changing.
+
+- **Photographs sit on the class, not the vehicle.** An operator with four
+  Corollas photographs the Corolla. Per-vehicle galleries are deferred rather
+  than omitted — see the migration.
+
+- **A JSON column rather than a media table.** The gallery is an ordered list of
+  paths belonging to one class, never queried across records and carrying no
+  metadata. Filament writes and reorders a JSON array natively. Alt text or
+  per-image visibility would be the point to promote it to a table.
+
+- **The home search is a plain GET form, not Livewire.** It works with
+  JavaScript off, the result is a shareable URL, and the back button behaves.
+  Livewire is reserved for the results page, where filtering without a reload
+  earns its place.
+
+- **Money surfaces are a different colour from browsing surfaces.** This
+  operator has no card gateway: a customer transfers real money and waits for a
+  person to verify it. Browsing should feel easy; paying should feel serious.
+
+- **Timezone conversion happens in `SearchController`**, at the edge, per
+  ARCHITECTURE §5. The two inputs are wall-clock Lusaka; everything stored is
+  UTC. There is a test asserting 09:00 entered becomes 07:00 UTC, because
+  getting it wrong moves somebody's collection by two hours.
+
+- **The price and the deposit are asserted against `QuoteService`**, not against
+  literals. A test comparing hardcoded strings would pass even if the page
+  invented its own arithmetic, which is the exact failure §1.2 exists to
+  prevent.
+
+### The rest of the journey · same day
+
+Vehicle detail, guest checkout and the confirmation page. A guest can now go
+from a search to a payment reference without an account.
+
+- **`VehicleController`** re-checks availability before rendering. A search
+  result is advisory (ARCHITECTURE §1) and somebody may have taken the last
+  Hilux in between; showing a full price and a Reserve button for a vehicle that
+  has gone wastes the customer's time and then fails at the least forgiving
+  moment. It also 404s when the branch in the URL is not where the vehicle is,
+  so a hand-altered link cannot produce a quote the operator cannot honour.
+- **`BasketController`** freezes the quote. Checkout reads it back rather than
+  recomputing, because recomputing would honour a rate change while somebody is
+  halfway through paying — §1.2.
+- **`CheckoutController`** — three fields, asked once, at the end (§1.3).
+- **The confirmation page**, which is what the whole design is organised around:
+  the payment reference set large and tabular, the amount, the deadline, the
+  operator's account details merged by the method's own adapter, and a numbered
+  "what happens next".
+
+### A bug the browser found, not the tests
+
+The confirmation first showed `balance_due` beside "amount to pay now". At that
+moment `balance_due` is the **whole grand total**, because the customer has been
+given instructions rather than credited — so a ZMW 2,220 hire read as "pay
+ZMW 1,110 now" and "ZMW 2,220 due at the branch", implying ZMW 3,330 owed.
+
+It now shows grand total minus what is being asked for, and there is a
+regression test asserting both the correct figure and the absence of the wrong
+one. Worth recording because every unit test involved was green: the fault was
+in what two correct numbers meant when placed next to each other.
+
+### Decisions
+
+- **The confirmation never says "confirmed".** §7.3: proof of payment never
+  confirms a booking on its own. A customer who reads "confirmed" here does not
+  send the money.
+- **It is reachable by reference without an account**, because that is how
+  somebody returns to their instructions from an email — and §1.4 keeps guests
+  guests.
+- **Short notice is stated honestly.** Inside the §8.2 window no hold is placed,
+  so the page says availability is first-come at the counter rather than
+  implying a vehicle is being kept.
+- **§1.4 is tested as behaviour, not as HTML.** An earlier attempt compared two
+  renders byte-for-byte and failed on Livewire's asset dedupe while proving
+  nothing. What matters is that a known email produces the same outcome as an
+  unknown one and is **not silently linked** to the existing customer.
+
+---
+
 ## Phase 4 — Payment methods, and money sent nowhere · 2026-08-09
 
 Closes a live customer-facing gap that had been open since Phase 2:

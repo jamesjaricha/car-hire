@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
-import { bunny } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
@@ -8,11 +7,10 @@ export default defineConfig({
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.js'],
             refresh: true,
-            fonts: [
-                bunny('Instrument Sans', {
-                    weights: [400, 500, 600],
-                }),
-            ],
+            // Instrument Sans was Laravel's scaffolding default and nothing
+            // uses it. Lexend and Source Sans 3 are loaded from the layout
+            // instead, so only the two families actually in the design are
+            // fetched.
         }),
         tailwindcss(),
     ],

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="utf-8">
+    {{-- Never disable zoom: some customers will be reading this at arm's length on a phone. --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <title>@yield('title', 'Hire a car in Zambia')</title>
+    <meta name="description" content="@yield('description', 'Book a vehicle in Zambia. The price you see includes the damage waiver, and the refundable deposit is shown before you pay.')">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    {{-- display=swap: text renders in a fallback immediately rather than
+         staying invisible while the webfont loads. --}}
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @livewireStyles
+</head>
+<body class="flex min-h-full flex-col bg-white font-sans text-ink-800 antialiased">
+
+    {{-- Keyboard users should not have to tab through the whole header on
+         every page to reach what they came for. --}}
+    <a href="#main"
+       class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-lg focus:bg-ink-900 focus:px-4 focus:py-2 focus:text-white">
+        Skip to content
+    </a>
+
+    <header class="bg-brand-950">
+        <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+            <a href="{{ route('home') }}" class="flex items-center gap-2.5">
+                {{-- A placeholder mark, not a logo. The operator has no brand
+                     yet; everything here is a token swap away from his. --}}
+                <span aria-hidden="true" class="flex size-9 items-center justify-center rounded-xl bg-brand-600">
+                    <svg class="size-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 17h14M6.5 17V9.5L8 6h8l1.5 3.5V17M7 12h10"/>
+                        <circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/>
+                    </svg>
+                </span>
+                <span class="font-display text-lg font-semibold tracking-tight text-white">
+                    {{ config('app.name') }}
+                </span>
+            </a>
+
+            <nav class="flex items-center gap-1 text-sm" aria-label="Main">
+                <a href="{{ route('home') }}"
+                   class="rounded-lg px-3 py-2 font-medium text-brand-100 transition-colors duration-150 hover:bg-brand-800 hover:text-white">
+                    Find a car
+                </a>
+                <a href="{{ route('home') }}#how-it-works"
+                   class="hidden rounded-lg px-3 py-2 font-medium text-brand-100 transition-colors duration-150 hover:bg-brand-800 hover:text-white sm:block">
+                    How it works
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <main id="main" class="flex-1">
+        @yield('content')
+    </main>
+
+    <footer class="mt-16 bg-brand-950">
+        <div class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+            <div class="grid gap-8 sm:grid-cols-3">
+                <div>
+                    <p class="font-display text-sm font-semibold text-white">{{ config('app.name') }}</p>
+                    <p class="mt-2 max-w-xs text-sm leading-relaxed text-brand-200">
+                        Vehicle hire in Zambia. Prices include the mandatory damage waiver.
+                    </p>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-white">Before you book</p>
+                    <ul class="mt-2 space-y-1.5 text-sm text-brand-200">
+                        <li>A refundable security deposit is taken at the branch.</li>
+                        <li>The insurance excess is shown at checkout.</li>
+                    </ul>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-white">Payment</p>
+                    <p class="mt-2 text-sm leading-relaxed text-brand-200">
+                        Cash, bank transfer and mobile money. Every payment is verified by a
+                        member of staff before your booking is confirmed.
+                    </p>
+                </div>
+            </div>
+            <p class="mt-8 border-t border-brand-800 pt-6 text-xs text-brand-400">
+                &copy; {{ now()->year }} {{ config('app.name') }}. Demonstration site.
+            </p>
+        </div>
+    </footer>
+
+    @livewireScripts
+</body>
+</html>

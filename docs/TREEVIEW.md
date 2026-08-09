@@ -116,6 +116,21 @@ carhire/
 │   │   ├── VehicleClass.php                  Carries the pricing.
 │   │   └── VehicleHold.php                   Only VehicleHoldService writes here.
 │   │
+│   ├── Http/Controllers/                     The customer site. Thin by rule:
+│   │   ├── BasketController.php          ★   Freezes the quote. Checkout reads
+│   │   │                                     it back and never re-prices.
+│   │   ├── CheckoutController.php        ★   Spec §1.3, and §1.4 — read the
+│   │   │                                     header: it must not reveal that
+│   │   │                                     an email already exists.
+│   │   ├── HomeController.php                pricing is QuoteService,
+│   │   ├── SearchController.php          ★   availability is
+│   │   │                                     AvailabilityService. Read its
+│   │   │                                     header for the timezone edge —
+│   │   │                                     inputs are wall-clock Lusaka,
+│   │   │                                     everything stored is UTC.
+│   │   └── VehicleController.php             Re-checks availability: a search
+│   │                                         result is advisory.
+│   │
 │   ├── Filament/
 │   │   ├── Pages/
 │   │   │   └── ManageSettings.php        ★   The operator's control panel. Read
@@ -265,6 +280,31 @@ carhire/
 │   └── Support/
 │       └── Money.php                      ★   All monetary arithmetic. Rounds half
 │                                              up; bcmath alone truncates.
+│
+├── resources/
+│   ├── css/app.css                       ★   Design tokens. Booking blue, the
+│   │                                         Zambian flag colours as accents,
+│   │                                         and a separate `ink` scale for the
+│   │                                         money surfaces. Read the header.
+│   └── views/
+│       ├── layouts/site.blade.php            Public layout. Skip link, fonts.
+│       ├── home.blade.php                    Hero, fleet, how booking works.
+│       ├── search.blade.php                  Results, grouped by class.
+│       ├── vehicle.blade.php                 One vehicle, itemised price, both
+│       │                                     deposits named separately.
+│       ├── checkout.blade.php                Three fields (§1.3), pay-in-full
+│       │                                     choice (§5), method (§8.2).
+│       ├── confirmation.blade.php        ★   The screen a customer stares at
+│       │                                     while deciding to send money.
+│       │                                     Never says "confirmed" — §7.3.
+│       └── components/
+│           ├── search-form.blade.php         Plain GET. Shareable URL, works
+│           │                                 without JavaScript.
+│           └── vehicle-card.blade.php    ★   Built to work WITHOUT a
+│                                             photograph. Silhouette fallback;
+│                                             §6 deposit shown here because it
+│                                             must never first appear at the
+│                                             counter.
 │
 ├── config/
 │   ├── carhire.php                            Timezone, currency, phone region,

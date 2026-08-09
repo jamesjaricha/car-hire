@@ -7,6 +7,7 @@ namespace App\Filament\Resources\VehicleClasses\Schemas;
 use App\Enums\InsurancePriceMode;
 use App\Models\Operator;
 use App\Models\VehicleClass;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -86,6 +87,30 @@ final class VehicleClassForm
                         ->rows(2)
                         ->maxLength(500)
                         ->columnSpanFull(),
+                ]),
+
+            Section::make('Photographs')
+                ->description('Shown to customers in search results and on the vehicle page. The first image is the one used on cards — drag to reorder.')
+                ->schema([
+                    FileUpload::make('image_paths')
+                        ->label('Images')
+                        ->image()
+                        ->multiple()
+                        ->reorderable()
+                        ->appendFiles()
+                        ->imageEditor()
+                        ->directory('vehicle-classes')
+                        // The public disk, because these are shown to anonymous
+                        // visitors on the search page. Requires
+                        // `php artisan storage:link` once per environment.
+                        ->disk('public')
+                        ->maxFiles(6)
+                        ->maxSize(4096)
+                        ->helperText(
+                            'Optional. The site is designed to work without photographs — a class with none '
+                            .'shows an illustrated silhouette rather than a broken card — but a real photograph '
+                            .'of the actual vehicle is the single biggest thing that makes a customer trust a booking.'
+                        ),
                 ]),
 
             Section::make('What the hire costs')
