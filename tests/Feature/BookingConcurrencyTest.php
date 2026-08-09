@@ -10,6 +10,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Models\VehicleHold;
 use Carbon\CarbonImmutable;
+use Database\Seeders\DemoPaymentDetailsSeeder;
 use Database\Seeders\PaymentMethodSeeder;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
@@ -49,6 +50,10 @@ final class BookingConcurrencyTest extends TestCase
 
         // Committed, so the child processes can see them.
         $this->seed(PaymentMethodSeeder::class);
+        // Committed like everything else here, so the child processes running a
+        // real checkout can see them. Without these, bank transfer is withheld
+        // and every racer fails for the wrong reason.
+        $this->seed(DemoPaymentDetailsSeeder::class);
     }
 
     /**

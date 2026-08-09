@@ -802,6 +802,30 @@ because the figure shown to the customer is then the vehicle's and it is a real
 decision. The excess has no vehicle-level override, so an undecided excess
 withholds every vehicle in the class.
 
+### Payment methods: configured is a third kind of "not ready"
+
+`payment_methods.account_details` is JSON, and each adapter declares what it
+needs — `BankTransferAdapter` wants a bank name, an account name and an account
+number. Until those exist the method is switched on in name only: the
+instructions merge to blanks where the account number belongs, and a customer is
+told to send money nowhere.
+
+Since 2026-08-09 such a method is **withheld from checkout**. The gate is on
+`PaymentMethodService` — `selectableFor()` and `assertSelectable()` — and
+deliberately **not** on `PaymentMethod::isOfferable()`.
+
+That distinction is the whole design. `isOfferable()` is asked by staff-facing
+code too: `CounterPaymentService` and the panel's take-payment action both use
+it, and a bank transfer that has *already landed* must still be recordable at
+the counter. The money arrived whether or not anybody has typed an account
+number into the panel, and refusing to write it down would be strictly worse
+than the problem being solved.
+
+So: the customer cannot be offered a method they could not pay by, and staff can
+still record money that has come in. Cash requires nothing, which is what keeps
+a fresh production install — where every set of details is deliberately empty —
+able to take bookings at all.
+
 ### The limit of both mechanisms
 
 Neither can recover information that was never recorded. Rows already sitting at

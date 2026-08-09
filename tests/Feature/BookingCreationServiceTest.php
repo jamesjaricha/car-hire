@@ -26,6 +26,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Models\VehicleHold;
 use Carbon\CarbonImmutable;
+use Database\Seeders\DemoPaymentDetailsSeeder;
 use Database\Seeders\PaymentMethodSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -50,6 +51,12 @@ final class BookingCreationServiceTest extends TestCase
         $this->travelTo($this->now);
 
         $this->seed(PaymentMethodSeeder::class);
+        // Since 2026-08-09 a method with no account details is withheld from
+        // customers, and PaymentMethodSeeder deliberately seeds none — real
+        // account numbers are operator data. Checkout therefore needs the demo
+        // details, or bank transfer is correctly refused before this test's
+        // subject is reached.
+        $this->seed(DemoPaymentDetailsSeeder::class);
 
         $class = VehicleClass::factory()->create([
             'daily_rate' => '650.00',

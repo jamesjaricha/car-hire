@@ -140,6 +140,19 @@ carhire/
 │   │       │   ├── Schemas/BookingInfolist.php   The two deposits, kept apart.
 │   │       │   └── Tables/BookingsTable.php
 │   │       │
+│   │       ├── PaymentMethods/               Edit only, Super Admin only. The
+│   │       │   │                             six rows ARE the six enum cases —
+│   │       │   │                             no create, no delete.
+│   │       │   ├── PaymentMethodResource.php
+│   │       │   ├── Pages/                    index, edit.
+│   │       │   ├── Schemas/PaymentMethodForm.php ★
+│   │       │   │                             Two rules do the work: required
+│   │       │   │                             account details, and every
+│   │       │   │                             :placeholder being fillable.
+│   │       │   └── Tables/PaymentMethodsTable.php
+│   │       │                                 "Offered to customers" ≠ "switched
+│   │       │                                 on".
+│   │       │
 │   │       ├── VehicleClasses/               REAL FORMS — the only resource with
 │   │       │   │                             them. A class is a row of figures
 │   │       │   │                             nobody's service owns. See
@@ -292,7 +305,14 @@ carhire/
 │       ├── DemoStaffSeeder.php                Local only, and throws elsewhere.
 │       │                                      One account per role, plus a
 │       │                                      roleless one that must be refused.
+│       ├── DemoPaymentDetailsSeeder.php   ★   Local and TEST only, refuses in
+│       │                                      production. Fake account details,
+│       │                                      because a method with none is now
+│       │                                      withheld from customers and real
+│       │                                      numbers must never be seeded.
 │       ├── PaymentMethodSeeder.php            Spec §3 and §8.1 hold durations.
+│       │                                      Seeds NO account details, on
+│       │                                      purpose — see above.
 │       ├── RolesAndPermissionsSeeder.php  ★   Spec §12. Authoritative — re-running
 │       │                                      it revokes off-matrix grants. Reads
 │       │                                      nothing through the permission cache.
@@ -315,6 +335,9 @@ carhire/
 │   │   │   ├── ManageSettingsTest.php     ★   Read the placeholder-flag tests:
 │   │   │   │                                  they guard the mechanism every
 │   │   │   │                                  §15 warning depends on.
+│   │   │   ├── PaymentMethodResourceTest.php  Required details, and templates
+│   │   │   │                                  that would print :placeholders
+│   │   │   │                                  to a customer verbatim.
 │   │   │   ├── RefundResourceTest.php     ★   The same, plus §9.3 made visible
 │   │   │   │                                  and the cancel-and-refund path.
 │   │   │   └── VehicleClassResourceTest.php   Creating a class without

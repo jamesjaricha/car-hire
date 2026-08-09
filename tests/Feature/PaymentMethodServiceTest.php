@@ -9,6 +9,7 @@ use App\Enums\PaymentMethodCode;
 use App\Exceptions\PaymentMethodNotAvailableException;
 use App\Models\PaymentMethod;
 use Carbon\CarbonImmutable;
+use Database\Seeders\DemoPaymentDetailsSeeder;
 use Database\Seeders\PaymentMethodSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -29,6 +30,7 @@ final class PaymentMethodServiceTest extends TestCase
         $this->travelTo($this->now);
 
         $this->seed(PaymentMethodSeeder::class);
+        $this->seed(DemoPaymentDetailsSeeder::class);
 
         $this->methods = app(PaymentMethodServiceContract::class);
     }
@@ -184,10 +186,97 @@ final class PaymentMethodServiceTest extends TestCase
         PaymentMethod::query()->where('code', 'cash')->update(['hold_duration_hours' => 12]);
 
         $this->seed(PaymentMethodSeeder::class);
+        $this->seed(DemoPaymentDetailsSeeder::class);
 
         $this->assertSame(
             12,
             PaymentMethod::query()->where('code', 'cash')->value('hold_duration_hours'),
         );
+    }
+
+    // --- Switched on is not the same as usable ------------------------------
+
+    /**
+     * Spec §4 makes the account details part of a method's configuration.
+     * Instructions to transfer money without an account number are instructions
+     * to send it nowhere, so the method is switched on in name only.
+     */
+    public function test_a_method_with_no_account_details_is_not_offered(): void
+    {
+        PaymentMethod::query()->where('code', 'bank_transfer')->update(['account_details' => null]);
+
+        $selectable = app(PaymentMethodServiceContract::class)
+            ->selectableFor(CarbonImmutable::now()->addDays(7))
+            ->pluck('code')
+            ->map(fn (PaymentMethodCode $code): string => $code->value)
+            ->all();
+
+        $this->assertNotContains('bank_transfer', $selectable);
+        // The others are unaffected, so this is the configuration gate rather
+        // than something broader failing.
+        $this->assertContains('mtn_momo', $selectable);
+    }
+
+    public function test_it_refuses_an_unconfigured_method_named_directly(): void
+    {
+        // §14.2: enforced by the server, not by the absence of a button.
+        PaymentMethod::query()->where('code', 'bank_transfer')->update(['account_details' => null]);
+
+        $this->expectException(PaymentMethodNotAvailableException::class);
+        $this->expectExceptionMessageMatches('/not configured/');
+
+        app(PaymentMethodServiceContract::class)->assertSelectable(
+            PaymentMethodCode::BankTransfer,
+            CarbonImmutable::now()->addDays(7),
+        );
+    }
+
+    public function test_the_refusal_names_what_is_missing(): void
+    {
+        PaymentMethod::query()->where('code', 'bank_transfer')->update([
+            'account_details' => ['bank_name' => 'Demo Bank'],
+        ]);
+
+        // Staff have to be told what to go and enter; "not configured" alone is
+        // not something anybody can act on.
+        $this->expectExceptionMessageMatches('/account_name.*account_number/');
+
+        app(PaymentMethodServiceContract::class)->assertSelectable(
+            PaymentMethodCode::BankTransfer,
+            CarbonImmutable::now()->addDays(7),
+        );
+    }
+
+    /**
+     * Cash requires nothing, so a fresh production install — where every set of
+     * account details is deliberately empty — can still take bookings.
+     */
+    public function test_cash_needs_no_configuration_and_survives_an_empty_install(): void
+    {
+        PaymentMethod::query()->update(['account_details' => null]);
+
+        $selectable = app(PaymentMethodServiceContract::class)
+            ->selectableFor(CarbonImmutable::now()->addDays(7))
+            ->pluck('code')
+            ->map(fn (PaymentMethodCode $code): string => $code->value)
+            ->all();
+
+        $this->assertSame(['cash'], $selectable);
+    }
+
+    /**
+     * The distinction the placement of this check rests on.
+     *
+     * Money that has already arrived must still be recordable at the counter,
+     * whether or not anybody has typed an account number into the panel. The
+     * model's own gate deliberately does not consult the configuration.
+     */
+    public function test_an_unconfigured_method_is_still_offerable_to_staff(): void
+    {
+        PaymentMethod::query()->where('code', 'bank_transfer')->update(['account_details' => null]);
+
+        $method = PaymentMethod::query()->where('code', 'bank_transfer')->firstOrFail();
+
+        $this->assertTrue($method->isOfferable());
     }
 }

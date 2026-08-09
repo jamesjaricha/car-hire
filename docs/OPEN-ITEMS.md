@@ -199,7 +199,19 @@ booked until Friday leaves it claimed until Friday, and those days cannot be
 resold. Not a correctness problem, a revenue one — and an invisible one, because
 the vehicle simply stops appearing in searches. Due with the returns workflow.
 
-**Payment method account details are empty.** `PaymentMethodSeeder` leaves
+**Payment method account details — RESOLVED 2026-08-09.** There is a screen:
+`/admin` → Payment methods, Super Admin only. And the consequence is no longer
+silent: a method switched on without the details its adapter requires is now
+**withheld from checkout** rather than offered with blanks, so a customer can
+never be told to send money nowhere. Cash requires nothing, so a fresh install
+still takes bookings while the operator enters real numbers.
+
+⚠ **The operator must still enter them before go-live.** Nothing is seeded in
+production on purpose. Until they are entered, bank transfer and both mobile
+money methods do not appear at checkout at all — which is safe, and will look
+like a fault to anybody who does not know why. The navigation badge counts them.
+
+**Superseded — payment method account details are empty.** `PaymentMethodSeeder` leaves
 `account_details` null on every method, deliberately — real bank account and
 merchant numbers are operator data and do not belong in source control. Until
 they are entered, bank transfer and mobile money instructions render with blanks

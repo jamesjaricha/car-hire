@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payments;
 
+use App\Contracts\PaymentAdapterResolverContract;
 use App\Contracts\PaymentMethodServiceContract;
 use App\Contracts\SettingsRepositoryContract;
 use App\Enums\PaymentMethodCode;
@@ -29,6 +30,7 @@ final class PaymentMethodService implements PaymentMethodServiceContract
 {
     public function __construct(
         private readonly SettingsRepositoryContract $settings,
+        private readonly PaymentAdapterResolverContract $adapters,
     ) {}
 
     /**
@@ -49,6 +51,10 @@ final class PaymentMethodService implements PaymentMethodServiceContract
 
         return $this->displayable()
             ->filter(fn (PaymentMethod $method): bool => $method->isOfferable())
+            // Switched on, but does the operator's configuration actually let a
+            // customer pay by it? Instructions to transfer money to a blank
+            // account number are instructions to send it nowhere.
+            ->filter(fn (PaymentMethod $method): bool => $this->isConfigured($method))
             ->filter(function (PaymentMethod $method) use ($shortNotice, $hoursToPickup): bool {
                 // Spec §8.2: with pickup imminent, nothing that has to be sent
                 // and then verified is any use. Cash at the counter only.
@@ -88,6 +94,13 @@ final class PaymentMethodService implements PaymentMethodServiceContract
             throw PaymentMethodNotAvailableException::notEnabled($raw);
         }
 
+        if (! $this->isConfigured($method)) {
+            throw PaymentMethodNotAvailableException::notConfigured(
+                $raw,
+                $this->adapters->for($method->code)->missingAccountDetails($method),
+            );
+        }
+
         $hoursToPickup = $this->hoursToPickup($pickupAt, $now);
         $threshold = $this->shortNoticeThresholdHours();
 
@@ -104,6 +117,36 @@ final class PaymentMethodService implements PaymentMethodServiceContract
         }
 
         return $method;
+    }
+
+    /**
+     * Whether the operator has supplied what this method needs to be paid by.
+     *
+     * WHY THIS IS HERE AND NOT ON THE MODEL
+     *
+     * `PaymentMethod::isOfferable()` is asked by staff-facing code too —
+     * `CounterPaymentService` and the panel's take-payment action both use it.
+     * A bank transfer that has already landed must still be recordable at the
+     * counter, because the money arrived whether or not anybody has typed an
+     * account number into the admin panel. Putting the check on the model would
+     * refuse to write down cash sitting on the desk.
+     *
+     * So it lives on the customer-facing gate only: `selectableFor()` draws the
+     * checkout, `assertSelectable()` refuses a hand-built request, and neither
+     * offers a method a customer could not actually pay by.
+     *
+     * A method with no adapter is treated as unconfigured rather than allowed
+     * through. Today that means the card methods, which `isOfferable()` has
+     * already excluded — but failing closed here means a future method that
+     * arrives without an adapter is withheld rather than offered.
+     */
+    private function isConfigured(PaymentMethod $method): bool
+    {
+        if (! $this->adapters->has($method->code)) {
+            return false;
+        }
+
+        return $this->adapters->for($method->code)->isConfigured($method);
     }
 
     /**

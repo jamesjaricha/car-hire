@@ -5,6 +5,70 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — Payment methods, and money sent nowhere · 2026-08-09
+
+Closes a live customer-facing gap that had been open since Phase 2:
+`payment_methods.account_details` was null on every row, so bank transfer and
+mobile money instructions rendered with blanks where the account and till
+numbers belong. A customer was being told to send money nowhere.
+
+### Added
+
+- **`PaymentMethodResource`** — edit only, Super Admin only (§12's
+  `payment-methods.manage`, the one row a Branch Manager does not hold), plus
+  `PaymentMethodPolicy`. No create and no delete: the six rows are the six cases
+  of `PaymentMethodCode`, each mapped to an adapter, and deleting one would
+  strand historic payments pointing at a code nothing can describe.
+- **A configuration gate on the customer-facing path.** `selectableFor()` and
+  `assertSelectable()` now require the method's adapter to report
+  `isConfigured()`, with `PaymentMethodNotAvailableException::notConfigured()`
+  naming exactly which details are missing.
+- **`DemoPaymentDetailsSeeder`** — obviously fake details ("Demo Bank", account
+  `0000000000`) for local development and the test suite.
+- Validation that every `:placeholder` in an instructions template is one
+  something can actually fill.
+
+### Decisions
+
+- **The gate is on `PaymentMethodService`, NOT on `PaymentMethod::isOfferable()`.**
+  This is the important one. `CounterPaymentService` and the panel's
+  take-payment action both call `isOfferable()`, and a bank transfer that has
+  *already landed* must still be recordable at the counter — the money arrived
+  whether or not anybody has typed an account number into the panel. Putting the
+  check on the model would have refused to write down cash sitting on the desk.
+  `CounterPaymentServiceTest` staying green through this change is the evidence.
+
+- **Cash requires nothing, and that is what keeps a fresh install usable.** With
+  every set of account details empty, checkout offers cash only rather than
+  nothing at all.
+
+- **The demo details are a separate seeder, not part of `PaymentMethodSeeder`.**
+  That one runs in production. Seeding plausible details there would offer bank
+  transfer on a live site with `isConfigured()` reporting everything fine, and
+  customers sending money to an account belonging to nobody. It refuses to run
+  in production, and unlike `DemoStaffSeeder` it permits `testing` — the suite
+  needs it, and fake payment details are only harmful in one environment.
+
+- **The template rule reads submitted state, not the saved record.** An operator
+  adding `swift_code` and referencing it in the same save must not be refused
+  for a field they just supplied. Found by a test.
+
+- **Unknown placeholders fail the save rather than warning after it.**
+  `OfflinePaymentAdapter` leaves an unrecognised `:placeholder` exactly as
+  written — it refuses to guess at operator copy — so the alternative is
+  shipping that literal text to a customer.
+
+### Test fixtures
+
+Three suites now seed `DemoPaymentDetailsSeeder`: `BookingCreationServiceTest`,
+`PaymentMethodServiceTest` and `BookingConcurrencyTest`. All three run a real
+checkout, so without account details bank transfer is correctly withheld and
+they fail before reaching their subject. The other nine suites that seed payment
+methods were unaffected, which is itself the evidence that the gate sits on the
+customer path only.
+
+---
+
 ## Phase 4 — Settings and vehicle class pricing · 2026-08-09
 
 The screens that finally let the business answer spec §15, and a schema change

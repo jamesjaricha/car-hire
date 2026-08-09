@@ -38,6 +38,12 @@ final class DatabaseSeeder extends Seeder
             $this->call([
                 DemoFleetSeeder::class,
                 DemoStaffSeeder::class,
+                // Fake account details, so a local checkout can offer bank
+                // transfer and mobile money at all — since 2026-08-09 a method
+                // with none is withheld from customers. PaymentMethodSeeder
+                // above deliberately seeds none, because a production install
+                // must not offer a method until real numbers are entered.
+                DemoPaymentDetailsSeeder::class,
             ]);
         }
     }
