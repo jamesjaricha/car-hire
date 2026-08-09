@@ -6,7 +6,8 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: Phase 4 in progress (booking screens, refunds), 2026-08-08.
+Last updated: Phase 4 in progress (booking screens, refunds, settings and fleet
+pricing), 2026-08-09.
 
 ```
 carhire/
@@ -116,6 +117,11 @@ carhire/
 │   │   └── VehicleHold.php                   Only VehicleHoldService writes here.
 │   │
 │   ├── Filament/
+│   │   ├── Pages/
+│   │   │   └── ManageSettings.php        ★   The operator's control panel. Read
+│   │   │                                     save(): it clears a placeholder
+│   │   │                                     flag ONLY for fields that changed,
+│   │   │                                     and that is load-bearing.
 │   │   └── Resources/
 │   │       ├── Bookings/                 ★   READ-ONLY. No form, no create or
 │   │       │   │                             edit page. See BookingPolicy.
@@ -133,6 +139,20 @@ carhire/
 │   │       │   │   └── ViewBooking.php
 │   │       │   ├── Schemas/BookingInfolist.php   The two deposits, kept apart.
 │   │       │   └── Tables/BookingsTable.php
+│   │       │
+│   │       ├── VehicleClasses/               REAL FORMS — the only resource with
+│   │       │   │                             them. A class is a row of figures
+│   │       │   │                             nobody's service owns. See
+│   │       │   │                             ARCHITECTURE §11 for the line.
+│   │       │   ├── VehicleClassResource.php
+│   │       │   ├── Pages/                    index, create, edit. No delete.
+│   │       │   ├── Schemas/VehicleClassForm.php ★
+│   │       │   │                             The three §15 fields are nullable
+│   │       │   │                             and NOT required: empty means
+│   │       │   │                             undecided, and requiring a number
+│   │       │   │                             would invent one.
+│   │       │   └── Tables/VehicleClassesTable.php
+│   │       │                                 "Sellable" is not decoration.
 │   │       │
 │   │       └── Refunds/                  ★   READ-ONLY, and for stronger reasons
 │   │           │                             than bookings: the amount is locked,
@@ -153,8 +173,13 @@ carhire/
 │   ├── Policies/
 │   │   ├── BookingPolicy.php             ★   create/update/delete all false.
 │   │   │                                     This is what makes read-only real.
-│   │   └── RefundPolicy.php              ★   Same, and higher stakes: a form here
-│   │                                         could defeat the two-person rule.
+│   │   ├── RefundPolicy.php              ★   Same, and higher stakes: a form here
+│   │   │                                     could defeat the two-person rule.
+│   │   └── VehicleClassPolicy.php            The exception: real CRUD, because
+│   │                                         no service owns these writes.
+│   │                                         Delete still refused — classes are
+│   │                                         retired, and history reads through
+│   │                                         them.
 │   │
 │   ├── Providers/
 │   │   ├── AppServiceProvider.php            Contract bindings; Eloquent strict mode.
@@ -252,10 +277,15 @@ carhire/
 │   │   │                                      payment_confirmations (unique key).
 │   │   ├── 2026_08_05_000006_*                payment method and proof columns
 │   │   │                                      on audit_log.
-│   │   └── 2026_08_08_00000{1,2}_*        ★   refunds (+ the two-person CHECK
-│   │                                          constraint) and refund_disbursements
-│   │                                          (+ the UNIQUE refund_id that makes
-│   │                                          double payout impossible).
+│   │   ├── 2026_08_08_00000{1,2}_*        ★   refunds (+ the two-person CHECK
+│   │   │                                      constraint) and refund_disbursements
+│   │   │                                      (+ the UNIQUE refund_id that makes
+│   │   │                                      double payout impossible).
+│   │   └── 2026_08_09_000001_*           ★   vehicle class pricing made nullable.
+│   │                                          NULL = undecided, 0.00 = decided
+│   │                                          and zero. Read its header — an
+│   │                                          undecided class was publishing
+│   │                                          "no deposit required" to customers.
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
 │       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
@@ -282,8 +312,13 @@ carhire/
 │   │   ├── Filament/
 │   │   │   ├── BookingResourceTest.php    ★   Proves read-only is enforced,
 │   │   │   │                                  not merely intended.
-│   │   │   └── RefundResourceTest.php     ★   The same, plus §9.3 made visible
-│   │   │                                      and the cancel-and-refund path.
+│   │   │   ├── ManageSettingsTest.php     ★   Read the placeholder-flag tests:
+│   │   │   │                                  they guard the mechanism every
+│   │   │   │                                  §15 warning depends on.
+│   │   │   ├── RefundResourceTest.php     ★   The same, plus §9.3 made visible
+│   │   │   │                                  and the cancel-and-refund path.
+│   │   │   └── VehicleClassResourceTest.php   Creating a class without
+│   │   │                                      inventing its §15 figures.
 │   │   ├── AdminPanelAccessTest.php           Who may open /admin at all.
 │   │   ├── AuditLogImmutabilityTest.php       Proves the DB trigger, not the model.
 │   │   ├── AuditLoggerTest.php                Every field §12 demands, in one
@@ -325,6 +360,9 @@ carhire/
 │   │   ├── RolesAndPermissionsSeederTest.php  Transcribes the §12 matrix
 │   │   │                                      independently of the enum.
 │   │   ├── StaffUserTest.php                  Branch posting, roles, cash exemption.
+│   │   ├── VehicleClassPricingDecisionsTest.php ★
+│   │   │                                      NULL vs 0.00, and what search does
+│   │   │                                      with a class nobody has priced.
 │   │   ├── VehicleHoldConcurrencyTest.php ★   Real processes racing one vehicle.
 │   │   └── VehicleHoldServiceTest.php
 │   ├── Unit/

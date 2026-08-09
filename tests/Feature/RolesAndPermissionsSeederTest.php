@@ -117,6 +117,8 @@ final class RolesAndPermissionsSeederTest extends TestCase
             'refunds.disburse',
             'cross-border.confirm',
             'payment-methods.manage',
+            'settings.manage',
+            'fleet.manage',
         ], $stored);
     }
 
@@ -192,6 +194,29 @@ final class RolesAndPermissionsSeederTest extends TestCase
         $this->assertFalse($clerk->hasPermissionTo(StaffPermission::PaymentMethodsManage));
         $this->assertFalse($manager->hasPermissionTo(StaffPermission::PaymentMethodsManage));
         $this->assertTrue($admin->hasPermissionTo(StaffPermission::PaymentMethodsManage));
+    }
+
+    /**
+     * Not from §12, which has no permission for configuration or for fleet
+     * pricing at all. Settled with the operator 2026-08-09: both are Super Admin
+     * only, on the same reasoning §12 applies to payment methods.
+     *
+     * A branch manager is deliberately excluded from fleet pricing despite
+     * maintaining their own vehicles — class rates and the damage waiver apply
+     * to every branch holding that class, so the screen is not local.
+     */
+    public function test_settings_and_fleet_pricing_are_super_admin_only(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $admin = User::factory()->withRole(StaffRole::SuperAdmin)->create();
+
+        $this->assertFalse($manager->hasPermissionTo(StaffPermission::SettingsManage));
+        $this->assertFalse($manager->hasPermissionTo(StaffPermission::FleetManage));
+
+        $this->assertTrue($admin->hasPermissionTo(StaffPermission::SettingsManage));
+        $this->assertTrue($admin->hasPermissionTo(StaffPermission::FleetManage));
     }
 
     /**

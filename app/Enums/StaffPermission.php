@@ -16,17 +16,21 @@ namespace App\Enums;
  * `Spatie\Permission\Models\Permission`, which is the stored row. This enum is
  * the vocabulary; that model is the record.
  *
- * THREE cases are NOT in §12, all added with the operator's agreement and all
- * marked where they are declared: `payments.record-manual`, `bookings.cancel`
- * and `refunds.disburse`. Each covers an act the specification simply does not
- * name, and in each case the nearest existing permission carried powers that
- * did not belong with it.
+ * FIVE cases are NOT in §12, all added with the operator's agreement and all
+ * marked where they are declared: `payments.record-manual`, `bookings.cancel`,
+ * `refunds.disburse`, `settings.manage` and `fleet.manage`. Each covers an act
+ * the specification simply does not name, and in each case the nearest existing
+ * permission carried powers that did not belong with it.
  *
- * The latter two were added on 2026-08-08, after the refunds work made both
- * gaps reachable from the panel. Before that, "who may cancel a booking" and
- * "who may hand refund money over" were answered by whichever permission the
- * calling screen happened to check — which is to say, they were answered
- * somewhere nobody would think to look.
+ * They arrived as the panel made each gap reachable: cancelling and disbursing
+ * on 2026-08-08 with refunds, configuration and fleet pricing on 2026-08-09
+ * with the screens that edit them. Before each was added, the real answer to
+ * "who may do this" was whichever permission the calling screen happened to
+ * check — which is to say, it was answered somewhere nobody would think to look.
+ *
+ * That pattern is worth expecting rather than being surprised by: §12 was
+ * written as a list of things staff do to bookings and payments, so every
+ * administrative screen tends to turn up one more gap.
  *
  * Adding a case here is not enough on its own. It must also be granted to the
  * roles that should hold it in RolesAndPermissionsSeeder, and the seeder has a
@@ -121,6 +125,33 @@ enum StaffPermission: string
     case PaymentMethodsManage = 'payment-methods.manage';
 
     /**
+     * Edit the operator-configurable values in the `settings` table.
+     *
+     * NOT IN SPEC §12. Added with the operator's agreement, 2026-08-09.
+     *
+     * §12 has no permission covering configuration, because when it was written
+     * there was no screen to configure anything from. These values are not
+     * preferences: the deposit percentage decides what every customer is asked
+     * to pay, and the flat admin fee is subtracted from real refunds. Super
+     * Admin only, on the same reasoning §12 uses for `payment-methods.manage`.
+     */
+    case SettingsManage = 'settings.manage';
+
+    /**
+     * Create and edit vehicle classes, and the pricing they carry.
+     *
+     * NOT IN SPEC §12. Added with the operator's agreement, 2026-08-09.
+     *
+     * Kept away from Branch Manager deliberately, even though a manager
+     * maintaining their own vehicles is reasonable: class pricing is not local.
+     * The daily rate, the damage waiver and the excess on a class apply to every
+     * branch that holds one, so this screen changes what customers are charged
+     * across the business. When vehicle-level CRUD arrives it can take a
+     * narrower permission of its own.
+     */
+    case FleetManage = 'fleet.manage';
+
+    /**
      * The permission required to confirm a payment made by this method.
      *
      * Spec §12 grants confirmation per method, not per payment: a counter clerk
@@ -166,6 +197,8 @@ enum StaffPermission: string
             self::RefundsDisburse => 'Hand an approved refund back to the customer',
             self::CrossBorderConfirm => 'Confirm cross-border paperwork',
             self::PaymentMethodsManage => 'Enable or disable payment methods',
+            self::SettingsManage => 'Change platform settings',
+            self::FleetManage => 'Manage vehicle classes and their pricing',
         };
     }
 
@@ -195,7 +228,9 @@ enum StaffPermission: string
 
             self::CrossBorderConfirm => 'cross-border',
 
-            self::PaymentMethodsManage => 'administration',
+            self::PaymentMethodsManage,
+            self::SettingsManage,
+            self::FleetManage => 'administration',
         };
     }
 

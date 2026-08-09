@@ -739,7 +739,73 @@ which says services check their own permissions. Inventing `bookings.cancel`
 would be a fourth undocumented departure from §12. Authorisation currently sits
 with the only caller, gated on `refunds.request`.
 
-§12 defines no permission for **handing the money over** either. Disbursement
-requires `refunds.approve`, which puts it at Branch Manager and above. The
-operator may want counter clerks to do it — they already collect and refund
-security deposits — and that is their call to make.
+§12 defines no permission for **handing the money over** either. Both were
+settled on 2026-08-08 as `bookings.cancel` and `refunds.disburse`, Counter Clerk
+and above. See §10.
+
+---
+
+## 14. Undecided is not zero
+
+Spec §15 lists twelve figures only the business can answer. Two mechanisms hold
+them, and the difference between the two is worth understanding before adding a
+third.
+
+### Settings carry a flag
+
+`settings.is_placeholder` marks a value as seeded rather than chosen. The value
+is real and in use — the platform reads it exactly as though it had been decided
+— and the flag is what surfaces it in the admin panel and keeps
+`OPEN-ITEMS.md` honest.
+
+The subtle part is what clears it. `SettingsRepository::set()` defaults
+`$isPlaceholder` to false, so **calling it clears the flag**. `ManageSettings`
+therefore compares each submitted value against what is stored and calls `set()`
+only for the ones that actually changed. A save-everything loop would mark all
+seventeen settings as decided the first time anybody pressed Save, silencing
+every warning in one click — which is worse than never having flagged them,
+because the flags are the only thing that says which figures are still guesses.
+
+Both sides of that comparison are normalised per setting type first. A money
+field filled with `'0.00'` comes back from the form as `'0'`, and a spurious
+"changed" clears a flag just as effectively as a real one.
+
+### Vehicle class pricing carries a null
+
+Three §15 items live on `vehicle_classes` rather than in `settings`, and they
+originally had no way to say "undecided": `DECIMAL(12,2) NOT NULL DEFAULT 0`
+made an unanswered figure and a deliberate zero the same value.
+
+That is worse than an unflagged setting, because these are customer-facing.
+Spec §6 requires the security deposit to appear in search results, at checkout,
+in the confirmation email and in the T&Cs, and says it **must never first appear
+at the counter**. A class left at the default did not warn anybody — it
+published "no deposit required" to every customer who looked, and the counter
+asked for K2,500 on collection. §10 does the same for the excess: zero states
+that the customer is liable for nothing.
+
+So the columns are nullable, and **null means undecided while 0.00 means decided
+and zero**. An operator who genuinely wants a zero-deposit class can say so.
+
+Three things then follow:
+
+- `PricingService` **refuses** a null rather than treating it as zero.
+- `AvailabilityService` **withholds** an incomplete class from search entirely.
+  This is the protection; the exception is a backstop for the other ways into
+  the booking engine.
+- The form **does not require** the three fields. Making them mandatory would
+  produce exactly the invented figure the null exists to prevent — a zero typed
+  to satisfy validation, and a class quietly sellable on a number nobody chose.
+
+A vehicle carrying its own `security_deposit_amount` override rescues its class,
+because the figure shown to the customer is then the vehicle's and it is a real
+decision. The excess has no vehicle-level override, so an undecided excess
+withholds every vehicle in the class.
+
+### The limit of both mechanisms
+
+Neither can recover information that was never recorded. Rows already sitting at
+the old zero default read afterwards as deliberate zeros, and no migration can
+distinguish them. The panel counts classes still holding a null; it cannot flag
+a zero that was never really chosen. **Review the fleet before go-live** rather
+than trusting the badge to be complete.

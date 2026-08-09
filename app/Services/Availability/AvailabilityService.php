@@ -36,6 +36,10 @@ final class AvailabilityService implements AvailabilityServiceContract
             return false;
         }
 
+        if (! $this->isSellable($vehicle)) {
+            return false;
+        }
+
         $padded = $range->paddedBy($this->pricing->turnaroundBufferMinutesFor($vehicle));
 
         return ! VehicleHold::query()
@@ -61,6 +65,15 @@ final class AvailabilityService implements AvailabilityServiceContract
             ->orderBy('id')
             ->get();
 
+        // Withheld before anything else is considered. A class whose security
+        // deposit or excess nobody has decided cannot be shown to a customer:
+        // spec §6 and §10 both require those figures in the search results, and
+        // an undecided one would render as zero. This is the protection; the
+        // exception in PricingService is only the backstop.
+        $candidates = $candidates
+            ->filter(fn (Vehicle $vehicle): bool => $this->isSellable($vehicle))
+            ->values();
+
         if ($candidates->isEmpty()) {
             return $candidates;
         }
@@ -70,6 +83,40 @@ final class AvailabilityService implements AvailabilityServiceContract
         return $candidates
             ->reject(fn (Vehicle $vehicle): bool => $blocked->contains($vehicle->getKey()))
             ->values();
+    }
+
+    /**
+     * Whether this vehicle may lawfully be offered to a customer.
+     *
+     * A vehicle carrying its own `security_deposit_amount` override is sellable
+     * even while its class has not decided one — the deposit shown would be the
+     * vehicle's. The excess has no vehicle-level override, so an undecided
+     * excess withholds every vehicle in the class.
+     *
+     * A vehicle whose class row is missing entirely is not sellable either.
+     * That is a data fault rather than a pricing decision, but the answer to
+     * "can a customer be shown this" is the same, and it is not this service's
+     * job to decide which kind of broken it is.
+     */
+    private function isSellable(Vehicle $vehicle): bool
+    {
+        if (! $vehicle->relationLoaded('vehicleClass')) {
+            $vehicle->setRelation('vehicleClass', $vehicle->vehicleClass()->first());
+        }
+
+        $class = $vehicle->vehicleClass;
+
+        if (! $class instanceof VehicleClass) {
+            return false;
+        }
+
+        if ($class->isFullyPriced()) {
+            return true;
+        }
+
+        return $vehicle->security_deposit_amount !== null
+            && $class->insurance_price !== null
+            && $class->insurance_excess_amount !== null;
     }
 
     /**

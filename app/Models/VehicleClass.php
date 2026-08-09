@@ -76,4 +76,89 @@ final class VehicleClass extends Model
     {
         return $query->where('is_active', true);
     }
+
+    /**
+     * The three figures spec §15 leaves to the business, and their columns.
+     *
+     * Null means undecided. 0.00 means somebody decided it is zero. Before the
+     * 2026-08-09 migration these were the same value, which meant an unpriced
+     * class published "no deposit required" to customers rather than warning
+     * anybody. See that migration.
+     *
+     * @var array<string, string>
+     */
+    public const PRICING_DECISIONS = [
+        'security_deposit_amount' => 'Refundable security deposit (spec §6, §15.2)',
+        'insurance_price' => 'Damage waiver price (spec §10, §15.3)',
+        'insurance_excess_amount' => 'Insurance excess (spec §10, §15.4)',
+    ];
+
+    /**
+     * Whether this class can lawfully be sold.
+     *
+     * Spec §6 requires the security deposit to be shown from search results
+     * onward and never to first appear at the counter; §10 requires the excess
+     * to be stated at checkout. A class missing either cannot be quoted honestly,
+     * so `PricingService` refuses it and `AvailabilityService` keeps it out of
+     * search entirely.
+     *
+     * `daily_rate` is not in this list because it has never been nullable —
+     * a class has always had to have one.
+     */
+    public function isFullyPriced(): bool
+    {
+        return $this->missingPricingDecisions() === [];
+    }
+
+    /**
+     * Which figures nobody has decided yet, as human labels.
+     *
+     * Returned rather than a bare boolean because the admin panel has to tell
+     * somebody what to go and enter, and "this class is incomplete" is not
+     * enough to act on.
+     *
+     * @return list<string>
+     */
+    public function missingPricingDecisions(): array
+    {
+        $missing = [];
+
+        foreach (self::PRICING_DECISIONS as $column => $label) {
+            if ($this->getAttribute($column) === null) {
+                $missing[] = $label;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Classes that can be sold.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeFullyPriced(Builder $query): Builder
+    {
+        foreach (array_keys(self::PRICING_DECISIONS) as $column) {
+            $query->whereNotNull($column);
+        }
+
+        return $query;
+    }
+
+    /**
+     * The review queue: classes waiting on a decision from the business.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeAwaitingPricingDecisions(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            foreach (array_keys(self::PRICING_DECISIONS) as $column) {
+                $query->orWhereNull($column);
+            }
+        });
+    }
 }

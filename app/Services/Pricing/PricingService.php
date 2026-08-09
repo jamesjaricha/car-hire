@@ -9,6 +9,7 @@ use App\Contracts\SettingsRepositoryContract;
 use App\DataTransferObjects\DateRange;
 use App\Enums\InsurancePriceMode;
 use App\Enums\SettingKey;
+use App\Exceptions\VehicleClassNotPricedException;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Support\Money;
@@ -35,16 +36,29 @@ final class PricingService implements PricingServiceContract
         );
     }
 
+    /**
+     * A vehicle-level override wins, and a class figure is only consulted when
+     * there is none — so a vehicle carrying its own deposit is sellable even
+     * while its class is still undecided.
+     */
     public function securityDepositFor(Vehicle $vehicle): string
     {
+        if ($vehicle->security_deposit_amount !== null) {
+            return $this->normalise($vehicle->security_deposit_amount);
+        }
+
         return $this->normalise(
-            $vehicle->security_deposit_amount ?? $this->classOf($vehicle)->security_deposit_amount
+            $this->decided($this->classOf($vehicle), 'security_deposit_amount')
         );
     }
 
     public function insuranceExcessFor(Vehicle $vehicle): string
     {
-        return $this->normalise($this->classOf($vehicle)->insurance_excess_amount);
+        // No vehicle-level override exists for the excess: spec §10 prices the
+        // waiver per class, so this is the class's decision or nothing.
+        return $this->normalise(
+            $this->decided($this->classOf($vehicle), 'insurance_excess_amount')
+        );
     }
 
     public function insuranceModeFor(Vehicle $vehicle): InsurancePriceMode
@@ -77,7 +91,7 @@ final class PricingService implements PricingServiceContract
     public function insuranceTotal(Vehicle $vehicle, DateRange $range): string
     {
         $class = $this->classOf($vehicle);
-        $price = $this->normalise($class->insurance_price);
+        $price = $this->normalise($this->decided($class, 'insurance_price'));
 
         return match ($class->insurance_price_mode) {
             InsurancePriceMode::Flat => $price,
@@ -109,6 +123,30 @@ final class PricingService implements PricingServiceContract
         }
 
         return $class;
+    }
+
+    /**
+     * A figure the business has actually decided, or a refusal.
+     *
+     * Null on any of the three §15 columns means undecided, not zero — see the
+     * 2026-08-09 migration. Returning `Money::of(null)` here would give '0.00',
+     * which is how an unpriced class came to advertise "no security deposit"
+     * and "no excess" to customers in writing.
+     *
+     * `AvailabilityService` keeps such a class out of search results, so this
+     * should not be reachable from the customer journey. It stays because the
+     * booking engine has other entry points — a staff reassignment, a direct
+     * quote — and the failure must be loud wherever it happens.
+     */
+    private function decided(VehicleClass $class, string $column): string
+    {
+        $value = $class->getAttribute($column);
+
+        if ($value === null) {
+            throw VehicleClassNotPricedException::missingDecisions($class);
+        }
+
+        return $value;
     }
 
     /**

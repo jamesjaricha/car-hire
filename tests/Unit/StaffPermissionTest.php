@@ -78,6 +78,8 @@ final class StaffPermissionTest extends TestCase
             'refunds.disburse',                // not in §12
             'cross-border.confirm',
             'payment-methods.manage',
+            'settings.manage',                 // not in §12
+            'fleet.manage',                    // not in §12
         ], StaffPermission::names());
     }
 

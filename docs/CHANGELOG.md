@@ -5,6 +5,91 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — Settings and vehicle class pricing · 2026-08-09
+
+The screens that finally let the business answer spec §15, and a schema change
+that stops an unanswered figure looking like a decision.
+
+### The bug this slice found
+
+`vehicle_classes.security_deposit_amount`, `insurance_price` and
+`insurance_excess_amount` were `DECIMAL(12,2) NOT NULL DEFAULT 0`. OPEN-ITEMS
+called them placeholders; the database could not tell an undecided figure from a
+deliberate zero.
+
+That is worse than the same problem on a setting, because these are
+customer-facing. Spec §6 requires the security deposit to appear in search
+results, at checkout, in the confirmation email and in the T&Cs, and says it
+**must never first appear at the counter**. A class left at the default did not
+warn anybody — it published "no deposit required" to every customer who looked,
+and the counter then asked for K2,500 on collection. §10 does the same for the
+excess: zero states the customer is liable for nothing.
+
+### Added
+
+- **Migration making those three columns nullable**, default dropped. **Null now
+  means undecided; 0.00 means decided, and zero.** An operator who genuinely
+  wants a zero-deposit class can still say so, and it counts as an answer.
+- `VehicleClass::isFullyPriced()`, `missingPricingDecisions()`, and the
+  `fullyPriced()` / `awaitingPricingDecisions()` scopes.
+- **`PricingService` refuses** a class carrying a null, with
+  `VehicleClassNotPricedException`, rather than pricing it at zero.
+- **`AvailabilityService` withholds** such a class from search entirely. That is
+  the protection; the exception is the backstop for other entry points.
+- **`ManageSettings`** — a custom page, one typed control per `SettingKey`,
+  grouped by `SettingKey::group()`.
+- **`VehicleClassResource`** — the first resource in this panel with real forms,
+  plus `VehicleClassPolicy`, which still refuses deletion.
+- **`settings.manage`** and **`fleet.manage`**, Super Admin only. Neither is in
+  §12; that makes seven documented departures.
+- `SettingsRepository::isPlaceholder()`.
+
+### Decisions
+
+- **A vehicle-level deposit override rescues an undecided class.** The figure
+  shown to the customer is then the vehicle's, and it is a real decision. The
+  excess has no vehicle-level override, so an undecided excess withholds every
+  vehicle in the class.
+
+- **The §15 fields are deliberately NOT required on the form.** Forcing a number
+  produces exactly the invented figure the null exists to prevent — somebody
+  types a zero to get past validation and the class quietly becomes sellable. A
+  new class starts unsellable and stays that way until a person decides.
+
+- **Saving settings clears the placeholder flag only for fields that actually
+  changed.** `SettingsRepository::set()` defaults `isPlaceholder` to false, so a
+  naive save-everything loop would mark all seventeen settings as decided the
+  first time anybody pressed Save — silencing every warning in the panel and
+  leaving OPEN-ITEMS.md describing a state the database no longer reports. Both
+  sides of that comparison are normalised per setting type first: a money field
+  filled with `'0.00'` comes back as `'0'`, and a spurious change is as harmful
+  here as a missed one. Two tests pin this from both directions.
+
+- **Fleet pricing is Super Admin, not Branch Manager**, despite a manager
+  maintaining their own vehicles being reasonable. Class rates and the damage
+  waiver apply to every branch holding that class, so the screen is not local.
+  Vehicle-level CRUD can take a narrower permission when it arrives.
+
+- **Classes are retired, never deleted.** `restrictOnDelete` from `vehicles` and
+  `bookings` would make a delete a raw `QueryException`, and a booking's history
+  reads through its class. `is_active` is the off switch.
+
+- **The settings page is a Page, not a Resource.** A resource over the table
+  would be row-per-setting CRUD with every value free text, and
+  `booking_deposit_percentage` decides what every customer pays.
+
+### ⚠ Deployment notes
+
+- Two new permission rows — **`RolesAndPermissionsSeeder` must be re-run**, as
+  with the previous slice.
+- The migration does not touch existing rows. Anything already sitting at the
+  old zero default reads afterwards as a **deliberate** zero, because the
+  information needed to tell those apart was never recorded. **Review the fleet
+  in the panel before go-live**; the navigation badge counts classes still
+  awaiting a decision, but it cannot flag a zero that was never really chosen.
+
+---
+
 ## Phase 4 — Two permissions §12 never named · 2026-08-08
 
 A follow-up to the refunds slice, which exposed both gaps by giving the panel a

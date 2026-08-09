@@ -10,7 +10,7 @@ Anything marked PLACEHOLDER is flagged in the `settings` table
 (`is_placeholder = true`) and will be listed in the admin panel, so this file
 and the running system cannot drift apart.
 
-Last reviewed: 2026-08-08 (Phase 4, refunds).
+Last reviewed: 2026-08-09 (Phase 4, settings and fleet pricing).
 
 ---
 
@@ -18,10 +18,10 @@ Last reviewed: 2026-08-08 (Phase 4, refunds).
 
 | # | Item | Where it lives | Status |
 |---|---|---|---|
-| 1 | Flat admin fee (ZMW), deducted from refunds | `settings.admin_fee_amount` | **PLACEHOLDER** `0.00` — ⚠ now applied to real money, see below |
-| 2 | Security deposit per vehicle class (ZMW) | `vehicle_classes.security_deposit_amount` | **PLACEHOLDER** per class |
-| 3 | Insurance price per class, and per-day vs flat | `vehicle_classes.insurance_price` / `insurance_price_mode` | **PLACEHOLDER** per class |
-| 4 | Insurance excess the customer remains liable for | `vehicle_classes.insurance_excess_amount` | **PLACEHOLDER** per class |
+| 1 | Flat admin fee (ZMW), deducted from refunds | `settings.admin_fee_amount` | **PLACEHOLDER** `0.00` — ⚠ applied to real money; **answerable in the panel** since 2026-08-09 |
+| 2 | Security deposit per vehicle class (ZMW) | `vehicle_classes.security_deposit_amount` | **NULL = undecided** per class; an undecided class is withheld from sale |
+| 3 | Insurance price per class, and per-day vs flat | `vehicle_classes.insurance_price` / `insurance_price_mode` | **NULL = undecided** per class |
+| 4 | Insurance excess the customer remains liable for | `vehicle_classes.insurance_excess_amount` | **NULL = undecided** per class |
 | 5 | Accepted KYC documents, minimum driver age, minimum licence years, foreign licence policy | `settings.minimum_driver_age`, `minimum_licence_years`, `foreign_licence_accepted` | **PLACEHOLDER** |
 | 6 | Cross-border: supported countries, price and document checklist per country | Not yet modelled — due in the cross-border phase | Outstanding |
 | 7 | SMS provider and registered sender ID | `settings.sms_provider`, `sms_sender_id` | **PLACEHOLDER**, empty |
@@ -45,9 +45,26 @@ modal, the refunds table, the refund record, and the approval modal — and free
 `refunds.admin_fee_was_placeholder` onto the row so that a refund raised today
 still reads as "computed with an undecided fee" after a real figure is entered.
 
-Note the ordering problem this creates: **there is no settings screen yet**, so
-the only way to enter a real fee today is SQL or `tinker`. Fleet and settings
-CRUD is the next slice of Phase 4 and clears this.
+**Resolved 2026-08-09:** the settings screen exists. `/admin` → Settings, Super
+Admin only. Editing the fee records it as a decision and the warnings stop.
+
+### Items 2, 3 and 4 changed shape on 2026-08-09
+
+They used to be `NOT NULL DEFAULT 0`, which meant an unanswered figure and a
+deliberate zero were the same value — and unlike item 1, these are shown to
+customers. A class left at the default published "no deposit required" in search
+results, at checkout and in the confirmation email, and spec §6 says the deposit
+must never first appear at the counter.
+
+They are now nullable. **Null means undecided, `0.00` means decided and zero.**
+An incomplete class is refused by `PricingService` and withheld from search by
+`AvailabilityService`, so it cannot reach a customer at all. The Vehicle classes
+screen carries a badge counting them.
+
+⚠ **The migration could not repair history.** Rows already at the old zero
+default now read as deliberate zeros, and nothing can tell them apart. Review
+every class in the panel before go-live rather than trusting the badge to be
+complete.
 
 ## Settled
 
