@@ -77,6 +77,17 @@ enum AuditAction: string
 
     case RefundRequested = 'refund.requested';
     case RefundApproved = 'refund.approved';
+
+    /**
+     * NOT NAMED IN §12's list, added deliberately.
+     *
+     * §12 enumerates "refund request and approval". A rejection is neither, and
+     * yet §9.3 requires every refund state change to be audited — so without
+     * this case the one refund outcome a customer is most likely to dispute
+     * would be the only one leaving no trace of who decided it.
+     */
+    case RefundRejected = 'refund.rejected';
+
     case RefundDisbursed = 'refund.disbursed';
 
     // --- Administration ------------------------------------------------------
@@ -110,6 +121,7 @@ enum AuditAction: string
             self::VehicleReturned => 'Vehicle returned',
             self::RefundRequested => 'Refund requested',
             self::RefundApproved => 'Refund approved',
+            self::RefundRejected => 'Refund rejected',
             self::RefundDisbursed => 'Refund disbursed',
             self::CrossBorderConfirmed => 'Cross-border paperwork confirmed',
             self::PaymentMethodEnabled => 'Payment method enabled',

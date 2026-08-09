@@ -36,6 +36,17 @@ enum SettingKey: string
     /** Fallback gap between hires when a class has no buffer of its own. */
     case DefaultTurnaroundBufferMinutes = 'default_turnaround_buffer_minutes';
 
+    /**
+     * Inside this many hours before pickup, a cancellation forfeits the booking
+     * deposit. Spec §9.1 sets it at 24.
+     *
+     * A setting rather than a constant for the same reason the 50% deposit is
+     * one: it is a business rule the operator may want to move, and it is
+     * printed in the T&Cs. Seeded with the specification's real value, not as a
+     * placeholder — §9.1 answers it.
+     */
+    case CancellationNoticeHours = 'cancellation_notice_hours';
+
     // --- Open items (§15) — seeded as placeholders ---------------------------
 
     /** Flat fee deducted from refunds. Spec §9, §15.1. */
@@ -76,7 +87,8 @@ enum SettingKey: string
             self::DeadlinePickupMarginHours,
             self::BasketTtlMinutes,
             self::HoldReminderRemainingPercentage,
-            self::DefaultTurnaroundBufferMinutes => 'booking',
+            self::DefaultTurnaroundBufferMinutes,
+            self::CancellationNoticeHours => 'booking',
 
             self::AdminFeeAmount,
             self::LateReturnHourlyCharge => 'charges',

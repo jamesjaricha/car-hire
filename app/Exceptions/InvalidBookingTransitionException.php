@@ -52,4 +52,19 @@ final class InvalidBookingTransitionException extends DomainException
             'A vehicle cannot be released before the refundable security deposit has been recorded.'
         );
     }
+
+    /**
+     * `BookingCancellationService` was pointed at a state that is not an ending.
+     *
+     * The state machine would refuse most of these anyway, but not all — it
+     * would happily be asked for `confirmed`, and a "cancellation" that confirmed
+     * a booking and released its vehicle hold is a worse outcome than a refusal.
+     */
+    public static function notACancellation(BookingStatus $to): self
+    {
+        return new self(sprintf(
+            '%s is not a way for a booking to end, so it cannot be cancelled to it.',
+            $to->value,
+        ));
+    }
 }

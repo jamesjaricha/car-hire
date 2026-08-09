@@ -6,6 +6,7 @@ namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingStatus;
+use App\Filament\Resources\Bookings\Actions\CancelAndRefundAction;
 use App\Filament\Resources\Bookings\Actions\ExtendDeadlineAction;
 use App\Filament\Resources\Bookings\Actions\TakeBalanceAction;
 use App\Models\Booking;
@@ -99,6 +100,10 @@ final class BookingsTable
                 ViewAction::make(),
                 TakeBalanceAction::make(),
                 ExtendDeadlineAction::make(),
+                // The third way to resolve a stalled booking, and the one that
+                // did not exist until refunds did: give the money back. Last in
+                // the row because it is the irreversible one.
+                CancelAndRefundAction::make(),
             ])
             // Deliberately empty. The generated resource offered a delete bulk
             // action; a booking is cancelled, never deleted, and never in bulk.

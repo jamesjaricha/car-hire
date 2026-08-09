@@ -10,7 +10,7 @@ Anything marked PLACEHOLDER is flagged in the `settings` table
 (`is_placeholder = true`) and will be listed in the admin panel, so this file
 and the running system cannot drift apart.
 
-Last reviewed: 2026-08-05 (end of Phase 3).
+Last reviewed: 2026-08-08 (Phase 4, refunds).
 
 ---
 
@@ -18,7 +18,7 @@ Last reviewed: 2026-08-05 (end of Phase 3).
 
 | # | Item | Where it lives | Status |
 |---|---|---|---|
-| 1 | Flat admin fee (ZMW), deducted from refunds | `settings.admin_fee_amount` | **PLACEHOLDER** `0.00` |
+| 1 | Flat admin fee (ZMW), deducted from refunds | `settings.admin_fee_amount` | **PLACEHOLDER** `0.00` — ⚠ now applied to real money, see below |
 | 2 | Security deposit per vehicle class (ZMW) | `vehicle_classes.security_deposit_amount` | **PLACEHOLDER** per class |
 | 3 | Insurance price per class, and per-day vs flat | `vehicle_classes.insurance_price` / `insurance_price_mode` | **PLACEHOLDER** per class |
 | 4 | Insurance excess the customer remains liable for | `vehicle_classes.insurance_excess_amount` | **PLACEHOLDER** per class |
@@ -31,6 +31,24 @@ Last reviewed: 2026-08-05 (end of Phase 3).
 | 11 | Late return charge rate | `settings.late_return_hourly_charge` | **PLACEHOLDER** `0.00` |
 | 12 | Whether counter clerks may confirm cash, per branch | `settings.counter_clerk_may_confirm_cash` | **PLACEHOLDER** `false`, global. The role grant exists; the per-branch override is due with the roles UI — see below |
 
+### ⚠ Item 1 is now live, and it is the most urgent of the twelve
+
+Until this slice, `admin_fee_amount` was a placeholder nothing read. Refunds read
+it. **Every refund raised today deducts a fee of zero**, which means every
+cancelling customer is given back more than the business intends to give them.
+
+Refusing to raise refunds while the fee is undecided was considered and rejected
+with the operator: it would make the whole feature unusable until a §15 answer
+arrives, including the cross-border case where §11 says the fee is legitimately
+zero. So the platform warns instead, in four places — the cancel-and-refund
+modal, the refunds table, the refund record, and the approval modal — and freezes
+`refunds.admin_fee_was_placeholder` onto the row so that a refund raised today
+still reads as "computed with an undecided fee" after a real figure is entered.
+
+Note the ordering problem this creates: **there is no settings screen yet**, so
+the only way to enter a real fee today is SQL or `tinker`. Fleet and settings
+CRUD is the next slice of Phase 4 and clears this.
+
 ## Settled
 
 | Item | Decision | Source |
@@ -40,6 +58,7 @@ Last reviewed: 2026-08-05 (end of Phase 3).
 | Deadline margin before pickup | 2 hours | Spec §8.2 |
 | Basket lifetime | 30 minutes | Spec §1.1 |
 | Payment reminder trigger | 25% of hold window remaining | Spec §8.4 |
+| Cancellation notice window | 24 hours before pickup; inside it the booking deposit is forfeit | Spec §9.1, seeded as `cancellation_notice_hours` |
 | Turnaround buffer between hires | 2 hours, per class | Confirmed with the operator, 2026-08-03 |
 | One-way hires | Allowed by staff arrangement only; no automatic vehicle relocation | Confirmed with the operator, 2026-08-03 |
 | Pricing level | Class sets rate and deposit; individual vehicles may override | Confirmed with the operator, 2026-08-03 |
@@ -133,12 +152,12 @@ Manager in Lusaka can currently see Livingstone's takings. If the operator wants
 that limited, note that one-way hires span two branches, so "their branch" needs
 defining before it can be built — pickup, drop-off, or either.
 
-**Part-paid bookings past their deadline now have a screen.** `BookingResource`
-tab "Needs a decision", visible to anyone holding `payments.extend-deadline`.
-Two of the three ways to resolve one exist: extend the deadline, or take the
-balance. **The third — cancel with a refund — still does not**, because there is
-no refunds table. Until it lands, a booking whose customer wants their money
-back has no route through the panel at all.
+**Part-paid bookings past their deadline — RESOLVED 2026-08-08.**
+`BookingResource` tab "Needs a decision", visible to anyone holding
+`payments.extend-deadline`. All three ways to resolve one now exist: extend the
+deadline, take the balance, or cancel and refund. The third was the gap that
+mattered — until refunds landed, a booking whose customer wanted their money back
+had no route through the panel at all.
 
 **Superseded: part-paid bookings past their deadline have no screen.** The expiry sweep
 deliberately refuses to cancel a booking holding the customer's money — spec
@@ -149,14 +168,18 @@ admin panel has a screen for it, that log line is the only thing that will tell
 anyone those bookings exist. Each one is holding money somebody paid. Due with
 the admin panel, and the highest priority of the queues listed here.
 
-**A confirmed hold is not released when the car comes back.** Confirming a
-payment extends the hold's `expires_at` to the end of the hire, which is what
-keeps the vehicle claimed for the whole booking (ARCHITECTURE §3). Nothing yet
-shortens it when a hire ends early — a customer returning on Tuesday a car
+**A confirmed hold is not released when the car comes back early — HALF CLOSED
+2026-08-08.** Confirming a payment extends the hold's `expires_at` to the end of
+the hire, which is what keeps the vehicle claimed for the whole booking
+(ARCHITECTURE §3). Nothing shortened it again.
+
+`BookingCancellationService` now releases every unreleased hold when a booking is
+cancelled or marked a no-show, which closes the cancellation half.
+
+**Still open: the `completed` transition.** A customer returning on Tuesday a car
 booked until Friday leaves it claimed until Friday, and those days cannot be
-resold. Not a correctness problem; a revenue one. `completed` and
-`cancelled_*` transitions should release the hold. Due with the returns workflow
-in Phase 4.
+resold. Not a correctness problem, a revenue one — and an invisible one, because
+the vehicle simply stops appearing in searches. Due with the returns workflow.
 
 **Payment method account details are empty.** `PaymentMethodSeeder` leaves
 `account_details` null on every method, deliberately — real bank account and
@@ -166,6 +189,29 @@ where the account and till numbers should be, and
 `PaymentAdapter::isConfigured()` reports false. The admin panel must surface
 that; a customer being told to transfer money to nowhere is worse than the
 method being switched off. Due with the payment methods screen in Phase 4.
+
+**Two §12 permission gaps the refunds work exposed — NEED AN ANSWER.** Both are
+decisions for the operator, and both are currently resolved by the safest
+available default rather than by anything the specification says.
+
+1. **Nobody owns cancelling a booking.** §12 lists fifteen permissions and none
+   of them covers ending a hire. `BookingCancellationService` therefore asserts
+   no permission of its own — a deliberate departure from ARCHITECTURE §9, taken
+   because inventing `bookings.cancel` silently would be a fourth undocumented
+   change to §12 and this project treats those as the operator's call.
+   Authorisation currently sits with the only caller: the panel's
+   cancel-and-refund action, gated on `refunds.request`, which every role holds.
+   **So a counter clerk can currently cancel a confirmed booking.** If that is
+   wrong, the answer is a new permission, and it must be added before a second
+   caller of that service exists.
+
+2. **Nobody owns handing the money over.** §12 names `refunds.request` and
+   `refunds.approve` and stops. `RefundDisbursementService` requires
+   `refunds.approve`, putting payout at Branch Manager and above. The plausible
+   alternative is that a counter clerk should be able to hand back cash — they
+   already collect and refund security deposits under §12 — in which case this is
+   a one-line change. Left at the stricter reading on purpose: the person
+   releasing money is the one §9.3 already trusts to authorise it.
 
 **KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
 KYC verified, balance settled and security deposit recorded. The latter two are

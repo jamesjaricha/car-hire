@@ -18,7 +18,10 @@ use Illuminate\Support\Collection;
  */
 final class SettingsRepository implements SettingsRepositoryContract
 {
-    private const CACHE_KEY = 'carhire.settings';
+    // Versioned. The cached payload gained `is_placeholder` in Phase 4, and
+    // `rememberForever` means a deployed server would otherwise keep serving
+    // the old three-key shape until something flushed it by hand.
+    private const CACHE_KEY = 'carhire.settings.v2';
 
     public function __construct(
         private readonly CacheRepository $cache,
@@ -87,6 +90,11 @@ final class SettingsRepository implements SettingsRepositoryContract
         $this->flush();
     }
 
+    public function isPlaceholder(SettingKey|string $key): bool
+    {
+        return ($this->all()[$this->keyString($key)] ?? null)['is_placeholder'] ?? false;
+    }
+
     public function placeholders(): Collection
     {
         return Setting::query()
@@ -102,16 +110,20 @@ final class SettingsRepository implements SettingsRepositoryContract
     }
 
     /**
-     * @return array<string, array{value: ?string, type: string}>
+     * @return array<string, array{value: ?string, type: string, is_placeholder: bool}>
      */
     private function all(): array
     {
-        /** @var array<string, array{value: ?string, type: string}> */
+        /** @var array<string, array{value: ?string, type: string, is_placeholder: bool}> */
         return $this->cache->rememberForever(self::CACHE_KEY, static function (): array {
             return Setting::query()
-                ->get(['key', 'value', 'type'])
+                ->get(['key', 'value', 'type', 'is_placeholder'])
                 ->mapWithKeys(static fn (Setting $setting): array => [
-                    $setting->key => ['value' => $setting->value, 'type' => $setting->type],
+                    $setting->key => [
+                        'value' => $setting->value,
+                        'type' => $setting->type,
+                        'is_placeholder' => (bool) $setting->is_placeholder,
+                    ],
                 ])
                 ->all();
         });

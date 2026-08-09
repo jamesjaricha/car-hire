@@ -5,6 +5,122 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — Refunds · 2026-08-08
+
+Spec §9, end to end: cancel a booking, compute what is owed, have a second person
+agree it, pay it out once. This closes the third and last way to resolve a
+part-paid booking past its deadline — until now the panel could extend the
+deadline or take the balance, but a customer who wanted their money back had no
+route through the system at all.
+
+### Added
+
+- **`refunds`** and **`refund_disbursements`** tables. The second exists only for
+  its `UNIQUE(refund_id)`; the first carries a `CHECK` constraint refusing an
+  approver who is also the requester.
+- `RefundReason` (§9.1, §9.2, §11) and `RefundStatus`.
+- **`RefundCalculator`** — pure, and the piece with the exhaustive test matrix.
+- **`BookingLedger`** — the single owner of `amount_paid`, now extracted from
+  `PaymentConfirmationService` and shared with disbursement.
+- **`BookingCancellationService`** — a person ending a booking, as the
+  counterpart to `BookingExpiryService`'s clock. Releases the vehicle hold.
+- **`RefundRequestService`** (request / approve / reject) and
+  **`RefundDisbursementService`** (disburse), separate because §9.3 separates the
+  people.
+- Read-only `RefundResource` with two queue tabs, `RefundPolicy`, and four
+  actions: approve, reject, record payout, and `CancelAndRefundAction` on the
+  booking screens.
+- `carhire:attempt-refund-disbursement` and `RefundDisbursementConcurrencyTest` —
+  the fourth multi-process suite.
+- `SettingKey::CancellationNoticeHours`, seeded at 24 (§9.1) as a real value
+  rather than a placeholder, and `SettingsRepository::isPlaceholder()`.
+- `AuditAction::RefundRejected`.
+
+**Tests** — not yet run against this slice; see the note at the end of this entry.
+
+### Decisions
+
+- **Refunds are their own ledger; payment rows are never rewritten.**
+  `amount_paid` is `SUM(confirmed receipts) − SUM(disbursed refunds)`. Flipping
+  the original receipt to `refunded` would destroy the record of an event that
+  genuinely happened — money did arrive, on a date, verified by a named person —
+  and leave the month it fell in unreconcilable. `PaymentStatus::RefundPending`
+  and `Refunded` therefore stay unused at MVP.
+
+- **Double disbursement is prevented by a unique key, not by a check.** Same
+  argument as `payment_confirmations`, and the stronger case of the two: a
+  duplicated confirmation overstates what a customer paid and can be unpicked
+  from the records, while a duplicated payout is cash that has left the building.
+  Proved with four racing processes.
+
+- **The two-person rule is a database constraint as well as a service guard.**
+  §9.3 is a fraud control, not a workflow nicety, and one that lives only in
+  application code is a single careless method away from being absent. There is a
+  test that writes to the table directly to prove the constraint holds with no
+  service involved.
+
+- **The refund amount is computed and locked.** No caller can pass a figure and
+  no form offers one. An editable amount makes §9 advice rather than policy, and
+  the person best placed to abuse it is the one raising the request.
+
+- **The figures are frozen onto the row at request time**, for the same reason
+  `payments.expected_amount` is. The admin fee is a setting somebody can change
+  this afternoon, `amount_paid` moves whenever a receipt is confirmed, and
+  whether a cancellation was inside 24 hours stops being true a day later.
+
+- **One action, two services, one transaction.** `CancelAndRefundAction` calls
+  `BookingCancellationService` and `RefundRequestService`; neither learns the
+  other exists. A cancelled booking with no refund raised against it is exactly
+  the queue Phase 3 left behind, and the transaction is what stops the panel
+  recreating it one failed request at a time.
+
+- **Cancelling releases the vehicle hold.** `claimsVehicle()` is already false
+  for every cancelled state, so leaving the hold would keep a cancelled booking's
+  car off sale until the original hire ended — invisible, and unsellable. Closes
+  half of the OPEN-ITEMS entry; the early-return half is still open.
+
+- **A refund of zero is not recorded.** A late cancellation can forfeit exactly
+  what was paid. Creating a row for it would ask two people to sign off a payment
+  that will never be made, and it could never be disbursed — §9.3 wants a
+  reference and there is none for money that did not move. The booking is still
+  cancelled and the calculation survives in the audit entry.
+
+- **The §15.1 placeholder warns rather than blocks.** Every screen that shows the
+  admin fee says when it is undecided, and `admin_fee_was_placeholder` is frozen
+  onto the refund so a row raised today still reads as such after the operator
+  enters a real figure. Refusing outright was considered and rejected: it would
+  have made the whole feature unusable until a §15 answer arrived.
+
+- **Disbursement requires `refunds.approve`.** §12 names no permission for
+  handing money over. Requiring the one it does name for authorising it is the
+  safer default; the operator may well want counter clerks to hand back cash, and
+  it is recorded in OPEN-ITEMS as their decision rather than assumed here.
+
+- **`BookingCancellationService` asserts no permission of its own**, which is a
+  departure from ARCHITECTURE §10. §12 defines no `bookings.cancel`, and
+  inventing one silently would be a fourth undocumented departure. Authorisation
+  sits with the caller — the panel action, gated on `refunds.request`. Recorded
+  in OPEN-ITEMS as an outstanding §12 question.
+
+### Also changed
+
+- `PaymentConfirmationService` no longer computes the paid total itself. Its
+  `paidTotalFor()` and `positionFor()` are gone, replaced by one
+  `BookingLedger::positionFor()` call. Behaviour is unchanged where no refunds
+  exist; two implementations of "how much has this booking been paid" would have
+  agreed only until one of them was edited.
+- `SettingsRepository`'s cache key is versioned (`carhire.settings.v2`) because
+  the cached payload gained `is_placeholder`, and `rememberForever` would
+  otherwise keep serving the old shape after deployment.
+
+### Not yet verified
+
+This entry was written with the code. **The suite has not been run against it**,
+no migration has been applied, and Pint has not been run. Nothing here should be
+treated as green until `php artisan test` says so.
+
+---
+
 ## Phase 4 — The booking screens · 2026-08-05
 
 The first resource in the panel, and the queue the whole slice was for.

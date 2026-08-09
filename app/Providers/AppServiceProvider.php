@@ -7,8 +7,10 @@ namespace App\Providers;
 use App\Contracts\AuditLoggerContract;
 use App\Contracts\AvailabilityServiceContract;
 use App\Contracts\BasketServiceContract;
+use App\Contracts\BookingCancellationServiceContract;
 use App\Contracts\BookingCreationServiceContract;
 use App\Contracts\BookingExpiryServiceContract;
+use App\Contracts\BookingLedgerContract;
 use App\Contracts\BookingReferenceGeneratorContract;
 use App\Contracts\BookingStateMachineContract;
 use App\Contracts\CounterPaymentServiceContract;
@@ -24,13 +26,18 @@ use App\Contracts\PhoneNormaliserContract;
 use App\Contracts\PricingServiceContract;
 use App\Contracts\QuoteServiceContract;
 use App\Contracts\ReferenceSequenceContract;
+use App\Contracts\RefundCalculatorContract;
+use App\Contracts\RefundDisbursementServiceContract;
+use App\Contracts\RefundRequestServiceContract;
 use App\Contracts\SettingsRepositoryContract;
 use App\Contracts\VehicleHoldServiceContract;
 use App\Services\Audit\AuditLogger;
 use App\Services\Availability\AvailabilityService;
 use App\Services\Basket\BasketService;
+use App\Services\Bookings\BookingCancellationService;
 use App\Services\Bookings\BookingCreationService;
 use App\Services\Bookings\BookingExpiryService;
+use App\Services\Bookings\BookingLedger;
 use App\Services\Bookings\BookingReferenceGenerator;
 use App\Services\Bookings\BookingStateMachine;
 use App\Services\Customers\CustomerResolver;
@@ -47,6 +54,9 @@ use App\Services\Payments\PaymentReferenceGenerator;
 use App\Services\Pricing\PricingService;
 use App\Services\Pricing\QuoteService;
 use App\Services\References\ReferenceSequence;
+use App\Services\Refunds\RefundCalculator;
+use App\Services\Refunds\RefundDisbursementService;
+use App\Services\Refunds\RefundRequestService;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
@@ -66,8 +76,12 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->bind(BasketServiceContract::class, BasketService::class);
 
         $this->app->singleton(AuditLoggerContract::class, AuditLogger::class);
+        $this->app->singleton(BookingCancellationServiceContract::class, BookingCancellationService::class);
         $this->app->singleton(BookingCreationServiceContract::class, BookingCreationService::class);
         $this->app->singleton(BookingExpiryServiceContract::class, BookingExpiryService::class);
+        // The single owner of "how much has this booking been paid". Two
+        // services write that figure; only this one works it out.
+        $this->app->singleton(BookingLedgerContract::class, BookingLedger::class);
         $this->app->singleton(BookingReferenceGeneratorContract::class, BookingReferenceGenerator::class);
         $this->app->singleton(PaymentAdapterResolverContract::class, PaymentAdapterResolver::class);
         $this->app->singleton(CounterPaymentServiceContract::class, CounterPaymentService::class);
@@ -76,6 +90,12 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PaymentRecordingServiceContract::class, PaymentRecordingService::class);
         $this->app->singleton(PaymentReferenceGeneratorContract::class, PaymentReferenceGenerator::class);
         $this->app->singleton(ReferenceSequenceContract::class, ReferenceSequence::class);
+        // Spec §9.3 separates the people who request, approve and disburse, so
+        // the services are separate too — the boundary is then visible in the
+        // constructor of anything that wants both.
+        $this->app->singleton(RefundCalculatorContract::class, RefundCalculator::class);
+        $this->app->singleton(RefundRequestServiceContract::class, RefundRequestService::class);
+        $this->app->singleton(RefundDisbursementServiceContract::class, RefundDisbursementService::class);
         $this->app->singleton(BookingStateMachineContract::class, BookingStateMachine::class);
         $this->app->singleton(SettingsRepositoryContract::class, SettingsRepository::class);
         $this->app->singleton(CustomerResolverContract::class, CustomerResolver::class);

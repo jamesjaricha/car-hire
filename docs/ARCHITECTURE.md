@@ -602,3 +602,130 @@ projects:
 - SQL returns `'1655'`, not `'1655.00'`. Normalise through `Money::of()` before
   comparing or storing, or exact-string assertions fail in ways that look like
   arithmetic bugs.
+
+Both traps now live in one place: `BookingLedger`. See §13.
+
+---
+
+## 13. Money going back
+
+Spec §9. Everything above is about money arriving; this is the other direction,
+and it is not the same problem reversed.
+
+### A refund is a ledger entry, not an undo
+
+The tempting design flips the original receipt to `refunded` and stops there. It
+is wrong, and quietly so. A confirmed payment records that money genuinely
+arrived, on a date, verified by a named person against a bank line. **That
+remains true after a refund.** Rewriting the row to say otherwise destroys the
+only record of an event that still happened, and leaves the month it fell in
+impossible to reconcile against a statement.
+
+So payment rows keep their status forever, and:
+
+```
+amount_paid = SUM(confirmed receipts) − SUM(disbursed refunds)
+```
+
+`BookingPaymentStatus::RefundPending` and `Refunded` carry §7.1's refund
+vocabulary at the booking level. `PaymentStatus::RefundPending` and `Refunded`
+exist on the receipt enum and go **unused** at MVP — they are the merged reading
+this design rejects.
+
+### `BookingLedger` owns that sum, and nothing else may
+
+Two services change what a booking has been paid: confirming a receipt adds to
+it, disbursing a refund takes from it. Written twice, the two implementations
+agree right up until one of them is edited — and the failure is not an exception,
+it is a booking whose stated balance depends on which service touched it last.
+
+`PaymentConfirmationService` used to compute this itself. It no longer does.
+
+**Approved is not disbursed.** Only refunds that have actually been paid out are
+subtracted. An approved refund is money still in the operator's hands, and
+treating it as gone would show the customer a balance they do not owe.
+`PaymentStatus::countsTowardsAmountPaid()` takes the same position from the other
+side; the two must not drift.
+
+### The figures are frozen, for the same reason `expected_amount` is
+
+`amount_paid_at_request`, `booking_deposit_retained`, `admin_fee_configured`,
+`admin_fee_deducted` and `amount` are all snapshots taken when the refund was
+raised. The admin fee is a setting somebody can change this afternoon;
+`amount_paid` moves whenever another receipt is confirmed; and whether a
+cancellation fell inside 24 hours of pickup **stops being true a day later**. A
+refund recomputed at approval time would be a different number from the one the
+requester saw and the customer was told, with nothing to show which was meant.
+
+`RefundCalculator` is a pure function of `(booking, reason)` and writes nothing,
+which is what lets the panel quote live in a modal — staff are usually on the
+telephone to the customer — and what lets §9's rules be tested exhaustively
+without cancelling anything.
+
+Deductions apply in §9.1's own order: **deposit first, then the fee on what is
+left.** Both clamp at zero. §9 describes money withheld from a sum already held;
+it never describes billing somebody for cancelling, so a customer who paid K100
+against a K150 fee gets nothing back and is not invoiced for K50.
+
+### Two structural guarantees, both familiar
+
+**The two-person rule (§9.3)** is enforced by `RefundRequestService::approve()`
+*and* by a `CHECK` constraint refusing `approved_by_user_id = requested_by_user_id`.
+The duplication is deliberate: this is a fraud control, not a workflow nicety.
+One person who can both raise and approve a refund can move money out of the
+business alone, and the audit trail would show it as properly authorised. A
+control that lives only in application code is one careless method away from
+being absent.
+
+**Never disbursed twice (§9.3)** is the unique key on
+`refund_disbursements.refund_id` — the same argument as `payment_confirmations`
+in §12, and the stronger case of the two. A duplicated confirmation overstates
+what a customer paid and can be unpicked from the records; a duplicated payout is
+cash that has physically left the building. `RefundDisbursementService` locks and
+checks first, but that is courtesy: it produces "already paid out by Mary at
+14:32, reference MM-4471" rather than a raw constraint error.
+
+Laravel's `Blueprint` has no `check()` helper, so the constraint is raw
+`ALTER TABLE` in the migration.
+
+### Cancelling and refunding are separate, and joined only at the panel
+
+`BookingStateMachine` answers questions and never performs a transition, so
+`BookingCancellationService` exists to actually write the status, stamp the time,
+release the vehicle hold and record who decided. `RefundRequestService` raises the
+refund. **Neither knows the other exists**; `CancelAndRefundAction` calls both in
+one transaction.
+
+That separation is not tidiness. A cross-border cancellation is the operator's
+failure and a customer cancellation is theirs; a booking can be cancelled with
+nothing to refund; and refunds will eventually be needed for reasons that are not
+cancellations. Fusing them now would have to be unpicked later.
+
+**Cancelling releases the hold.** `claimsVehicle()` is false for every cancelled
+state, so leaving it would keep the car off sale until the original hire ended —
+no exception, no wrong number on a screen, just a vehicle that stops appearing in
+searches. That is why it survived three phases as an open item.
+
+### A refund of zero is not recorded
+
+A late cancellation can forfeit exactly what was paid. Creating a row for it
+would put a payment that will never be made into the approval queue, and it could
+never be disbursed — §9.3 requires a disbursement reference, and there is none
+for money that did not move. The booking is still cancelled, and the calculation
+survives in the cancellation's audit entry.
+
+### Where this departs from §12, and why it is written down
+
+Two things here have no permission in the specification, and both are recorded
+in `OPEN-ITEMS.md` rather than settled quietly.
+
+§12 defines no permission for **cancelling a booking**, so
+`BookingCancellationService` asserts none — a departure from §9 of this document,
+which says services check their own permissions. Inventing `bookings.cancel`
+would be a fourth undocumented departure from §12. Authorisation currently sits
+with the only caller, gated on `refunds.request`.
+
+§12 defines no permission for **handing the money over** either. Disbursement
+requires `refunds.approve`, which puts it at Branch Manager and above. The
+operator may want counter clerks to do it — they already collect and refund
+security deposits — and that is their call to make.

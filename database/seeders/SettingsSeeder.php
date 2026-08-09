@@ -76,6 +76,11 @@ final class SettingsSeeder extends Seeder
                 'Default turnaround buffer (minutes)',
                 'Fallback gap between hires for cleaning and inspection when a class sets none. Confirmed at 2 hours.',
             ),
+            $this->setting(
+                SettingKey::CancellationNoticeHours, '24', 'integer',
+                'Cancellation notice window (hours)',
+                'Cancelling inside this window before pickup forfeits the booking deposit. Spec §9.1 sets this at 24 hours.',
+            ),
 
             // --- Open items (§15) — placeholders -----------------------------
             $this->setting(

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payments;
 
 use App\Contracts\AuditLoggerContract;
+use App\Contracts\BookingLedgerContract;
 use App\Contracts\BookingStateMachineContract;
 use App\Contracts\PaymentConfirmationServiceContract;
 use App\Contracts\SettingsRepositoryContract;
@@ -12,7 +13,6 @@ use App\Contracts\VehicleHoldServiceContract;
 use App\DataTransferObjects\AuditEntry;
 use App\DataTransferObjects\PaymentConfirmationResult;
 use App\Enums\AuditAction;
-use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\SettingKey;
@@ -75,6 +75,7 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
         private readonly BookingStateMachineContract $stateMachine,
         private readonly VehicleHoldServiceContract $holds,
         private readonly SettingsRepositoryContract $settings,
+        private readonly BookingLedgerContract $ledger,
         private readonly AuditLoggerContract $audit,
     ) {}
 
@@ -185,19 +186,18 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
                 'status' => PaymentStatus::Confirmed,
             ])->save();
 
-            $amountPaid = $this->paidTotalFor($booking);
+            // Recomputed from every receipt and refund that exists, by the one
+            // class that owns that arithmetic. Disbursing a refund moves the
+            // same three figures, and two implementations of "how much has this
+            // booking been paid" would eventually give two answers.
+            $position = $this->ledger->positionFor($booking);
+
+            $amountPaid = $position->amountPaid;
+            $balanceDue = $position->balanceDue;
+            $paymentStatus = $position->paymentStatus;
+
             $grandTotal = Money::of($booking->grand_total);
-
             $overpaid = Money::compare($amountPaid, $grandTotal) > 0;
-
-            // Clamped at zero. A negative balance is not a debt owed the other
-            // way; an overpayment is a refund question, and showing it as
-            // "balance: -200.00" invites someone to treat it as one.
-            $balanceDue = Money::compare($amountPaid, $grandTotal) >= 0
-                ? Money::ZERO
-                : Money::subtract($grandTotal, $amountPaid);
-
-            $paymentStatus = $this->positionFor($amountPaid, $grandTotal);
 
             $statusBefore = $booking->status;
             $statusAfter = $this->nextBookingStatus($booking, $amountPaid, $grandTotal, $statusBefore);
@@ -264,43 +264,6 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
                 overpaidAmount: $overpaid ? Money::subtract($amountPaid, $grandTotal) : Money::ZERO,
             );
         }, attempts: 3);
-    }
-
-    /**
-     * Everything confirmed against this booking, summed from scratch.
-     *
-     * Never an increment of a running total. An increment is wrong the first
-     * time anything is confirmed twice, corrected or replayed, and it is wrong
-     * silently, because the number still looks plausible.
-     *
-     * `reorder()` matters: an aggregate that inherits an ORDER BY on a column
-     * outside it is rejected by MySQL with error 1140 while SQLite passes it
-     * without complaint. `Money::of()` matters too — SQL returns '1655', not
-     * '1655.00'.
-     */
-    private function paidTotalFor(Booking $booking): string
-    {
-        return Money::of(
-            Payment::query()
-                ->where('booking_id', $booking->getKey())
-                ->counted()
-                ->reorder()
-                ->sum('amount')
-        );
-    }
-
-    /**
-     * Spec §7.1, as a function of what has actually been confirmed.
-     */
-    private function positionFor(string $amountPaid, string $grandTotal): BookingPaymentStatus
-    {
-        if (! Money::isPositive($amountPaid)) {
-            return BookingPaymentStatus::AwaitingPayment;
-        }
-
-        return Money::compare($amountPaid, $grandTotal) >= 0
-            ? BookingPaymentStatus::PaidInFull
-            : BookingPaymentStatus::PartiallyPaid;
     }
 
     /**

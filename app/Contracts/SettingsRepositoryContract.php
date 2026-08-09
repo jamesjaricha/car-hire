@@ -30,6 +30,17 @@ interface SettingsRepositoryContract
     public function set(SettingKey|string $key, mixed $value, bool $isPlaceholder = false): void;
 
     /**
+     * Whether this key still holds a seeded placeholder rather than a real
+     * decision by the business.
+     *
+     * Asked by anything that applies a §15 value to real money, so that the
+     * figure can be shown as undecided rather than as though it had been
+     * chosen. An unknown key is not a placeholder — it is a missing setting,
+     * which is a different fault.
+     */
+    public function isPlaceholder(SettingKey|string $key): bool;
+
+    /**
      * Settings still holding a seeded placeholder rather than a real decision.
      *
      * @return Collection<int, Setting>

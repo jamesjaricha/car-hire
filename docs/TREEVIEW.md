@@ -6,7 +6,7 @@ rather than listed.
 
 ★ marks the files to read first if you are trying to understand how this works.
 
-Last updated: Phase 4 in progress (Filament installed, access gate), 2026-08-05.
+Last updated: Phase 4 in progress (booking screens, refunds), 2026-08-08.
 
 ```
 carhire/
@@ -17,6 +17,8 @@ carhire/
 │   │   │   │                                 outcome as an exit code.
 │   │   │   ├── AttemptPaymentConfirmationCommand.php
 │   │   │   │                                 Test harness. One confirmation.
+│   │   │   ├── AttemptRefundDisbursementCommand.php
+│   │   │   │                                 Test harness. One payout attempt.
 │   │   │   ├── AttemptVehicleHoldCommand.php Test harness. One hold attempt.
 │   │   │   └── ExpireBookingsCommand.php ★   NOT a harness. Runs in production,
 │   │   │                                     every 5 minutes, and by hand.
@@ -102,6 +104,10 @@ carhire/
 │   │   ├── PaymentConfirmation.php       ★   The unique key here is what makes
 │   │   │                                     double confirmation impossible.
 │   │   ├── PaymentMethod.php                 Use isOfferable(), not `enabled`.
+│   │   ├── Refund.php                        Its figures are FROZEN at request.
+│   │   │                                     Never recompute them.
+│   │   ├── RefundDisbursement.php        ★   The unique key here is what makes
+│   │   │                                     double payout impossible.
 │   │   ├── Setting.php
 │   │   ├── User.php                          Staff, never customers. Roles, branch
 │   │   │                                     and operator. Null branch = no counter.
@@ -110,23 +116,45 @@ carhire/
 │   │   └── VehicleHold.php                   Only VehicleHoldService writes here.
 │   │
 │   ├── Filament/
-│   │   └── Resources/Bookings/           ★   READ-ONLY. No form, no create or
-│   │       │                                 edit page. See BookingPolicy.
-│   │       ├── BookingResource.php
-│   │       ├── Actions/                      Every mutation lives here, and
-│   │       │   ├── ExtendDeadlineAction.php  each one calls a service. Domain
-│   │       │   └── TakeBalanceAction.php     exceptions become notifications;
-│   │       │                                 anything else is left to bubble.
-│   │       ├── Pages/
-│   │       │   ├── ListBookings.php          Tabs. "Needs a decision" is the
-│   │       │   │                             part-paid queue.
-│   │       │   └── ViewBooking.php
-│   │       ├── Schemas/BookingInfolist.php   The two deposits, kept apart.
-│   │       └── Tables/BookingsTable.php
+│   │   └── Resources/
+│   │       ├── Bookings/                 ★   READ-ONLY. No form, no create or
+│   │       │   │                             edit page. See BookingPolicy.
+│   │       │   ├── BookingResource.php
+│   │       │   ├── Actions/                  Every mutation lives here, and
+│   │       │   │   ├── CancelAndRefundAction.php  each one calls a service.
+│   │       │   │   │                         ★ One button, TWO services, one
+│   │       │   │   │                         transaction. Neither knows the other.
+│   │       │   │   ├── ExtendDeadlineAction.php   Domain exceptions become
+│   │       │   │   └── TakeBalanceAction.php      notifications; anything else
+│   │       │   │                             is left to bubble.
+│   │       │   ├── Pages/
+│   │       │   │   ├── ListBookings.php      Tabs. "Needs a decision" is the
+│   │       │   │   │                         part-paid queue.
+│   │       │   │   └── ViewBooking.php
+│   │       │   ├── Schemas/BookingInfolist.php   The two deposits, kept apart.
+│   │       │   └── Tables/BookingsTable.php
+│   │       │
+│   │       └── Refunds/                  ★   READ-ONLY, and for stronger reasons
+│   │           │                             than bookings: the amount is locked,
+│   │           │                             the approver is subject to §9.3, and
+│   │           │                             the status derives from a unique key.
+│   │           ├── RefundResource.php        Navigation badge = the open queues.
+│   │           ├── Actions/
+│   │           │   ├── ApproveRefundAction.php    Hidden from the requester.
+│   │           │   ├── DisburseRefundAction.php   No amount field, by design.
+│   │           │   └── RejectRefundAction.php     Reason required.
+│   │           ├── Pages/
+│   │           │   ├── ListRefunds.php       Two queue tabs, both first.
+│   │           │   └── ViewRefund.php
+│   │           ├── Schemas/RefundInfolist.php    Shows the §9 working, not just
+│   │           │                                 the answer.
+│   │           └── Tables/RefundsTable.php
 │   │
 │   ├── Policies/
-│   │   └── BookingPolicy.php             ★   create/update/delete all false.
-│   │                                         This is what makes read-only real.
+│   │   ├── BookingPolicy.php             ★   create/update/delete all false.
+│   │   │                                     This is what makes read-only real.
+│   │   └── RefundPolicy.php              ★   Same, and higher stakes: a form here
+│   │                                         could defeat the two-person rule.
 │   │
 │   ├── Providers/
 │   │   ├── AppServiceProvider.php            Contract bindings; Eloquent strict mode.
@@ -139,12 +167,20 @@ carhire/
 │   │   ├── Availability/AvailabilityService.php   Search. Results are advisory.
 │   │   ├── Basket/BasketService.php               Session basket, frozen price.
 │   │   ├── Bookings/
+│   │   │   ├── BookingCancellationService.php     A PERSON ending a booking, as
+│   │   │   │                                      the counterpart to the expiry
+│   │   │   │                                      sweep's clock. Releases the hold.
 │   │   │   ├── BookingCreationService.php     ★   Where everything meets, in one
 │   │   │   │                                      transaction. Lock ordering matters.
 │   │   │   ├── BookingExpiryService.php           Spec §8.4. One transaction per
 │   │   │   │                                      booking; part-paid ones skipped.
+│   │   │   ├── BookingLedger.php              ★   The SINGLE owner of amount_paid:
+│   │   │   │                                      confirmed receipts − disbursed
+│   │   │   │                                      refunds. Two services write that
+│   │   │   │                                      figure; only this works it out.
 │   │   │   ├── BookingReferenceGenerator.php      Gapless BR-00001, under a lock.
-│   │   │   └── BookingStateMachine.php            Spec §7.3, transcribed.
+│   │   │   └── BookingStateMachine.php            Spec §7.3, transcribed. Asserts
+│   │   │                                          only — it never persists.
 │   │   ├── Customers/
 │   │   │   ├── CustomerResolver.php               A match NEVER links silently.
 │   │   │   └── PhoneNormaliser.php                E.164 via libphonenumber.
@@ -173,6 +209,16 @@ carhire/
 │   │   │                                          receipts with no booking.
 │   │   ├── References/ReferenceSequence.php       The locked counter both
 │   │   │                                          reference series share.
+│   │   ├── Refunds/                               Spec §9. Split because §9.3
+│   │   │   │                                      splits the people.
+│   │   │   ├── RefundCalculator.php           ★   Pure. (booking, reason) → what
+│   │   │   │                                      is owed. Deposit first, then the
+│   │   │   │                                      fee on what is left; all clamped.
+│   │   │   ├── RefundDisbursementService.php  ★   Money leaving. The unique key is
+│   │   │   │                                      the guarantee, not the check.
+│   │   │   └── RefundRequestService.php           Request, approve, reject. The
+│   │   │                                          two-person rule lives here AND
+│   │   │                                          in a CHECK constraint.
 │   │   ├── Pricing/
 │   │   │   ├── PricingService.php                 Class → vehicle override chain.
 │   │   │   └── QuoteService.php                   Search price == checkout price.
@@ -204,8 +250,12 @@ carhire/
 │   │   │                                      operator_id + branch_id on users.
 │   │   ├── 2026_08_05_00000{3..5}_*           bookings.payment_status, payments,
 │   │   │                                      payment_confirmations (unique key).
-│   │   └── 2026_08_05_000006_*                payment method and proof columns
-│   │                                          on audit_log.
+│   │   ├── 2026_08_05_000006_*                payment method and proof columns
+│   │   │                                      on audit_log.
+│   │   └── 2026_08_08_00000{1,2}_*        ★   refunds (+ the two-person CHECK
+│   │                                          constraint) and refund_disbursements
+│   │                                          (+ the UNIQUE refund_id that makes
+│   │                                          double payout impossible).
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
 │       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
@@ -230,14 +280,18 @@ carhire/
 ├── tests/
 │   ├── Feature/
 │   │   ├── Filament/
-│   │   │   └── BookingResourceTest.php    ★   Proves read-only is enforced,
-│   │   │                                      not merely intended.
+│   │   │   ├── BookingResourceTest.php    ★   Proves read-only is enforced,
+│   │   │   │                                  not merely intended.
+│   │   │   └── RefundResourceTest.php     ★   The same, plus §9.3 made visible
+│   │   │                                      and the cancel-and-refund path.
 │   │   ├── AdminPanelAccessTest.php           Who may open /admin at all.
 │   │   ├── AuditLogImmutabilityTest.php       Proves the DB trigger, not the model.
 │   │   ├── AuditLoggerTest.php                Every field §12 demands, in one
 │   │   │                                      entry.
 │   │   ├── AvailabilityServiceTest.php
 │   │   ├── BasketServiceTest.php              Price frozen against a rate change.
+│   │   ├── BookingCancellationServiceTest.php Endings, and the hold release the
+│   │   │                                      revenue leak depended on.
 │   │   ├── BookingConcurrencyTest.php     ★   Real processes racing a whole checkout.
 │   │   ├── BookingCreationServiceTest.php
 │   │   ├── BookingExpiryServiceTest.php       Read the note on the race test:
@@ -259,6 +313,15 @@ carhire/
 │   │   ├── PaymentReferenceGeneratorTest.php  Suffixes, gaps, and the two series.
 │   │   ├── PricingServiceTest.php
 │   │   ├── QuoteServiceTest.php
+│   │   ├── RefundCalculatorTest.php       ★   Spec §9's every rule against every
+│   │   │                                      timing. The exhaustive one — this is
+│   │   │                                      where a mistake is somebody's money.
+│   │   ├── RefundDisbursementConcurrencyTest.php ★
+│   │   │                                      Four processes, one refund. The most
+│   │   │                                      consequential of the four races.
+│   │   ├── RefundDisbursementServiceTest.php  Payout, the ledger, and the refusals.
+│   │   ├── RefundRequestServiceTest.php       §9.3's two-person rule, tested via
+│   │   │                                      the service AND against the raw table.
 │   │   ├── RolesAndPermissionsSeederTest.php  Transcribes the §12 matrix
 │   │   │                                      independently of the enum.
 │   │   ├── StaffUserTest.php                  Branch posting, roles, cash exemption.
@@ -285,10 +348,11 @@ Phases 1 to 3 are complete. A booking can be searched for, priced, held, taken,
 paid for, confirmed and expired, and every consequential step is audited. There
 is still no user interface of any kind.
 
-**Phase 4 — Admin.** Roles UI, payment confirmation screens, the unmatched
-payments queue, the part-paid-past-deadline queue, vehicle reassignment,
-deadline extension, and the `refunds` table with its two-person request and
-approve workflow.
+**Phase 4 — Admin, in progress.** Done: the access gate, the booking screens with
+the part-paid-past-deadline queue, deadline extension, counter payments, and
+refunds end to end (§9). Still to come: the payments resource and the unmatched
+queue, fleet and settings CRUD — which is what finally lets the operator answer
+the §15 placeholders — users and roles UI, and vehicle reassignment (§8.3).
 
 **Phase 5 — Customer UI.** Search, vehicle detail, basket, checkout,
 confirmation. Guest flow first, account linking second.
