@@ -187,13 +187,32 @@ final class RefundDisbursementServiceTest extends TestCase
         $this->disbursements->disburse($this->manager(), $refund, '   ');
     }
 
-    public function test_a_counter_clerk_may_not_pay_a_refund_out(): void
+    /**
+     * `refunds.disburse` is not in §12. Settled with the operator 2026-08-08 at
+     * Counter Clerk and above: §12 already lets a clerk hand back a security
+     * deposit across the same counter, to the same customer.
+     *
+     * They still cannot approve one — that stays at Branch Manager — so this is
+     * executing somebody else's decision, at an amount neither can edit.
+     */
+    public function test_a_counter_clerk_may_pay_out_a_refund_a_manager_approved(): void
+    {
+        [$booking, $refund] = $this->approvedRefund();
+        $clerk = $this->clerk();
+
+        $result = $this->disbursements->disburse($clerk, $refund, 'CASH-0091');
+
+        $this->assertSame(RefundStatus::Disbursed, $result->refund->status);
+        $this->assertSame((int) $clerk->getKey(), (int) $result->disbursement->disbursed_by_user_id);
+    }
+
+    public function test_a_staff_member_holding_no_refund_permission_may_not_pay_one_out(): void
     {
         [$booking, $refund] = $this->approvedRefund();
 
         $this->expectException(StaffPermissionDeniedException::class);
 
-        $this->disbursements->disburse($this->clerk(), $refund, 'MM-4471');
+        $this->disbursements->disburse(User::factory()->create(), $refund, 'MM-4471');
     }
 
     public function test_nothing_is_written_when_it_refuses(): void
@@ -201,7 +220,7 @@ final class RefundDisbursementServiceTest extends TestCase
         [$booking, $refund] = $this->approvedRefund();
 
         try {
-            $this->disbursements->disburse($this->clerk(), $refund, 'MM-4471');
+            $this->disbursements->disburse(User::factory()->create(), $refund, 'MM-4471');
         } catch (StaffPermissionDeniedException) {
             // Expected.
         }

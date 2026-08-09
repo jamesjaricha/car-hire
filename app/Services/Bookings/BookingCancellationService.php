@@ -11,8 +11,10 @@ use App\Contracts\VehicleHoldServiceContract;
 use App\DataTransferObjects\AuditEntry;
 use App\Enums\AuditAction;
 use App\Enums\BookingStatus;
+use App\Enums\StaffPermission;
 use App\Enums\TransitionActor;
 use App\Exceptions\InvalidBookingTransitionException;
+use App\Exceptions\StaffPermissionDeniedException;
 use App\Models\Booking;
 use App\Models\User;
 use App\Models\VehicleHold;
@@ -45,20 +47,18 @@ use Illuminate\Support\Facades\DB;
  * is a revenue leak rather than a correctness bug, which is why it survived
  * three phases.
  *
- * ON PERMISSIONS — READ THIS BEFORE ADDING A SECOND CALLER
+ * ON PERMISSIONS
  *
- * This service asserts NO permission of its own, and that is a departure from
- * ARCHITECTURE §10, which says permissions are checked in the service rather
- * than only at the edge. The reason is that spec §12 defines no permission for
- * cancelling a booking — there is no `bookings.cancel` to check. Inventing one
- * silently would be a fourth undocumented departure from §12, and this codebase
- * has a standing rule that those are decisions for the operator rather than for
- * whoever is typing.
+ * `bookings.cancel` is NOT in spec §12 — the specification names fifteen
+ * permissions and none of them covers ending a hire. It was added with the
+ * operator's agreement on 2026-08-08, held from Counter Clerk upwards.
  *
- * So authorisation currently lives with the caller. The only caller is the
- * panel's cancel-and-refund action, gated on `refunds.request`, which every role
- * holds. If you add a second caller, gate it — and see `docs/OPEN-ITEMS.md`,
- * where this is recorded as an outstanding §12 question rather than an oversight.
+ * The first version of this service asserted nothing and let the calling
+ * screen's `refunds.request` stand in, which every role holds. That worked, and
+ * it was wrong in a specific way worth remembering: the real answer to "who may
+ * cancel a booking" was "everybody", and the only place to discover it was a
+ * docblock. A permission that lives in the §12 matrix, the seeder and the roles
+ * screen can be reviewed by somebody who does not read PHP.
  */
 final class BookingCancellationService implements BookingCancellationServiceContract
 {
@@ -74,9 +74,15 @@ final class BookingCancellationService implements BookingCancellationServiceCont
         BookingStatus $to,
         ?string $reason = null,
     ): Booking {
-        // Checked before the lock because it depends on nothing but the
-        // argument. The state machine would refuse most wrong answers, but not
-        // all of them — `confirmed` is a legal move from `pending_payment`, and
+        // Before any lock: nothing about the answer depends on the booking, and
+        // a refusal should not queue behind other work.
+        if (! $actor->hasPermissionTo(StaffPermission::BookingsCancel)) {
+            throw StaffPermissionDeniedException::missing(StaffPermission::BookingsCancel);
+        }
+
+        // Also before the lock, because it depends on nothing but the argument.
+        // The state machine would refuse most wrong answers, but not all of
+        // them — `confirmed` is a legal move from `pending_payment`, and
         // reaching it through a method called cancel() would confirm a booking
         // and release its vehicle hold in the same breath.
         if (! $this->isAnEnding($to)) {

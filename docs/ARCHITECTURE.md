@@ -340,7 +340,7 @@ combination gets a **new role**; they do not get an edited Counter Clerk.
 
 ### Where this departs from §12
 
-Three things in the permission model are not in the specification, and all three
+Five things in the permission model are not in the specification, and all five
 are marked in the code where they appear rather than only here.
 
 §12 lists `payments.edit-manual-payment` and `bookings.override-short-notice`
@@ -354,6 +354,20 @@ has no permission in the specification, and the nearest one carried the power to
 alter payments already recorded. Recording and editing are different acts with
 different risks — one states what happened, the other revises it — so they have
 different permissions. Counter clerks hold the first and not the second.
+
+`bookings.cancel` and `refunds.disburse` are likewise absent from §12, and were
+added later — on 2026-08-08, when refunds first gave the panel a way to end a
+hire or hand money back. Both sit at Counter Clerk and above, and both were
+briefly answered by accident before they existed: cancelling was gated on
+whatever permission the calling screen happened to check, and paying out
+borrowed `refunds.approve`. The first meant the true answer to "who may cancel a
+booking" was "everybody", discoverable only in a docblock. The second meant a
+clerk could hand back a security deposit under §12 but not a refund, across the
+same counter, to the same customer.
+
+Neither lets the counter decide anything. A cancellation's refund still needs a
+second, more senior person to approve it, and a payout executes an approval
+somebody else gave at an amount neither of them can edit.
 
 A specification gap filled by inference is still a gap. These are written down
 in three places on purpose: the enum, `OPEN-ITEMS.md`, and here.

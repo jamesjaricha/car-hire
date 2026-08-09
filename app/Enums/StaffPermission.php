@@ -16,10 +16,17 @@ namespace App\Enums;
  * `Spatie\Permission\Models\Permission`, which is the stored row. This enum is
  * the vocabulary; that model is the record.
  *
- * One case — `payments.record-manual` — is NOT in §12. It was added with the
- * operator's agreement because §12 has no permission covering the act of
- * writing down money that arrived, and the nearest one carried powers a counter
- * clerk should not have. It is marked where it is declared.
+ * THREE cases are NOT in §12, all added with the operator's agreement and all
+ * marked where they are declared: `payments.record-manual`, `bookings.cancel`
+ * and `refunds.disburse`. Each covers an act the specification simply does not
+ * name, and in each case the nearest existing permission carried powers that
+ * did not belong with it.
+ *
+ * The latter two were added on 2026-08-08, after the refunds work made both
+ * gaps reachable from the panel. Before that, "who may cancel a booking" and
+ * "who may hand refund money over" were answered by whichever permission the
+ * calling screen happened to check — which is to say, they were answered
+ * somewhere nobody would think to look.
  *
  * Adding a case here is not enough on its own. It must also be granted to the
  * roles that should hold it in RolesAndPermissionsSeeder, and the seeder has a
@@ -60,6 +67,26 @@ enum StaffPermission: string
     case BookingsReassignVehicle = 'bookings.reassign-vehicle';
     case BookingsOverrideShortNotice = 'bookings.override-short-notice';
 
+    /**
+     * End a booking by hand: cancel it, or mark it a no-show.
+     *
+     * NOT IN SPEC §12. Added deliberately, with the operator's agreement,
+     * 2026-08-08.
+     *
+     * §12 lists fifteen permissions and none of them covers ending a hire,
+     * which only became visible when refunds gave the panel a way to do it. The
+     * first implementation therefore asserted nothing and let the calling
+     * action's `refunds.request` stand in — which meant the real answer to "who
+     * may cancel a booking" was "everybody", and it was discoverable only by
+     * reading a service docblock.
+     *
+     * Held from Counter Clerk upwards. The clerk is the one facing a customer
+     * who wants to cancel, and they can only start the process: the refund that
+     * follows still needs a different, more senior person to approve it before
+     * any money moves. Same reasoning as `bookings.override-short-notice`.
+     */
+    case BookingsCancel = 'bookings.cancel';
+
     // --- Counter operations --------------------------------------------------
 
     case KycVerify = 'kyc.verify';
@@ -70,6 +97,23 @@ enum StaffPermission: string
 
     case RefundsRequest = 'refunds.request';
     case RefundsApprove = 'refunds.approve';
+
+    /**
+     * Physically hand an approved refund back, and record §9.3's proof.
+     *
+     * NOT IN SPEC §12. Added deliberately, with the operator's agreement,
+     * 2026-08-08.
+     *
+     * §9.3 separates requesting from approving and says nothing about who pays.
+     * Borrowing `refunds.approve` for it would have meant a counter clerk could
+     * hand back a security deposit — which §12 explicitly permits — but not a
+     * refund, across the same counter, to the same customer.
+     *
+     * Held from Counter Clerk upwards. The clerk executes a decision somebody
+     * else made, at an amount neither of them can edit, and their name goes on
+     * the disbursement reference.
+     */
+    case RefundsDisburse = 'refunds.disburse';
 
     // --- Everything else -----------------------------------------------------
 
@@ -113,11 +157,13 @@ enum StaffPermission: string
             self::PaymentsExtendDeadline => 'Extend a payment deadline',
             self::BookingsReassignVehicle => 'Reassign a booking to another vehicle',
             self::BookingsOverrideShortNotice => 'Override the short-notice rule',
+            self::BookingsCancel => 'Cancel a booking or mark it a no-show',
             self::KycVerify => 'Verify KYC documents',
             self::SecurityDepositCollect => 'Collect a security deposit',
             self::SecurityDepositRefund => 'Refund a security deposit',
             self::RefundsRequest => 'Request a refund',
             self::RefundsApprove => 'Approve a refund',
+            self::RefundsDisburse => 'Hand an approved refund back to the customer',
             self::CrossBorderConfirm => 'Confirm cross-border paperwork',
             self::PaymentMethodsManage => 'Enable or disable payment methods',
         };
@@ -135,7 +181,8 @@ enum StaffPermission: string
             self::PaymentsExtendDeadline => 'payments',
 
             self::BookingsReassignVehicle,
-            self::BookingsOverrideShortNotice => 'bookings',
+            self::BookingsOverrideShortNotice,
+            self::BookingsCancel => 'bookings',
 
             self::KycVerify => 'kyc',
 
@@ -143,7 +190,8 @@ enum StaffPermission: string
             self::SecurityDepositRefund => 'security-deposit',
 
             self::RefundsRequest,
-            self::RefundsApprove => 'refunds',
+            self::RefundsApprove,
+            self::RefundsDisburse => 'refunds',
 
             self::CrossBorderConfirm => 'cross-border',
 

@@ -22,11 +22,13 @@ use Tests\TestCase;
  * NOT derived from StaffRole::permissions(). Deriving them would make this file
  * agree with the code no matter what the code said, which is not a test.
  *
- * They are §12 plus three decisions the specification does not make, all
- * settled with the operator on 2026-08-05 and all marked where they appear:
+ * They are §12 plus five decisions the specification does not make, all marked
+ * where they appear. Settled with the operator on 2026-08-05:
  * `payments.record-manual` (not in §12 at all), and the placement of
  * `bookings.override-short-notice` and `payments.edit-manual-payment`, which
- * §12 lists without saying who holds them.
+ * §12 lists without saying who holds them. Settled on 2026-08-08, once refunds
+ * made both gaps reachable from the panel: `bookings.cancel` and
+ * `refunds.disburse`, neither of which §12 names at all.
  */
 final class RolesAndPermissionsSeederTest extends TestCase
 {
@@ -47,10 +49,16 @@ final class RolesAndPermissionsSeederTest extends TestCase
         // §12 lists it but places it nowhere. Settled with the operator: the
         // clerk is the one facing the customer three hours before pickup.
         'bookings.override-short-notice',
+        // Not from §12. Settled with the operator 2026-08-08: the clerk faces
+        // the customer who wants to cancel, and can only start the process.
+        'bookings.cancel',
         'kyc.verify',
         'security-deposit.collect',
         'security-deposit.refund',
         'refunds.request',
+        // Not from §12. Settled with the operator 2026-08-08: §12 already lets
+        // a clerk hand back a security deposit across the same counter.
+        'refunds.disburse',
     ];
 
     /**
@@ -74,11 +82,13 @@ final class RolesAndPermissionsSeederTest extends TestCase
         'payments.extend-deadline',
         'bookings.reassign-vehicle',
         'bookings.override-short-notice',
+        'bookings.cancel',
         'kyc.verify',
         'security-deposit.collect',
         'security-deposit.refund',
         'refunds.request',
         'refunds.approve',
+        'refunds.disburse',
         'cross-border.confirm',
     ];
 
@@ -98,11 +108,13 @@ final class RolesAndPermissionsSeederTest extends TestCase
             'payments.extend-deadline',
             'bookings.reassign-vehicle',
             'bookings.override-short-notice',
+            'bookings.cancel',
             'kyc.verify',
             'security-deposit.collect',
             'security-deposit.refund',
             'refunds.request',
             'refunds.approve',
+            'refunds.disburse',
             'cross-border.confirm',
             'payment-methods.manage',
         ], $stored);

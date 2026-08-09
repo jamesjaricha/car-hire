@@ -8,6 +8,7 @@ use App\Contracts\BookingCancellationServiceContract;
 use App\Enums\BookingStatus;
 use App\Enums\StaffRole;
 use App\Exceptions\InvalidBookingTransitionException;
+use App\Exceptions\StaffPermissionDeniedException;
 use App\Models\AuditLogEntry;
 use App\Models\Booking;
 use App\Models\User;
@@ -60,6 +61,65 @@ final class BookingCancellationServiceTest extends TestCase
         $this->assertSame(BookingStatus::CancelledByCustomer, $cancelled->status);
         $this->assertSame('Customer rang to cancel.', $cancelled->cancellation_reason);
         $this->assertTrue($cancelled->cancelled_at->equalTo($this->now));
+    }
+
+    // --- Who may ------------------------------------------------------------
+
+    /**
+     * `bookings.cancel` is not in §12 — the specification names no permission
+     * for ending a hire at all. Settled with the operator 2026-08-08 at Counter
+     * Clerk and above: the clerk is the one facing the customer, and cancelling
+     * only starts the process. The refund that follows still needs a manager.
+     */
+    public function test_a_counter_clerk_may_cancel(): void
+    {
+        $booking = Booking::factory()->confirmed()->create();
+
+        $cancelled = $this->cancellations->cancel(
+            actor: User::factory()->withRole(StaffRole::CounterClerk)->create(),
+            booking: $booking,
+            to: BookingStatus::CancelledByCustomer,
+        );
+
+        $this->assertSame(BookingStatus::CancelledByCustomer, $cancelled->status);
+    }
+
+    public function test_a_staff_member_without_the_permission_may_not_cancel(): void
+    {
+        $booking = Booking::factory()->confirmed()->create();
+
+        $this->expectException(StaffPermissionDeniedException::class);
+
+        $this->cancellations->cancel(
+            actor: User::factory()->create(),
+            booking: $booking,
+            to: BookingStatus::CancelledByCustomer,
+        );
+    }
+
+    public function test_nothing_is_written_when_the_permission_is_refused(): void
+    {
+        $booking = Booking::factory()->confirmed()->create();
+
+        $hold = VehicleHold::factory()->create([
+            'vehicle_id' => $booking->vehicle_id,
+            'booking_id' => $booking->getKey(),
+        ]);
+
+        try {
+            $this->cancellations->cancel(
+                actor: User::factory()->create(),
+                booking: $booking,
+                to: BookingStatus::CancelledByCustomer,
+            );
+        } catch (StaffPermissionDeniedException) {
+            // Expected.
+        }
+
+        // The refusal happens before the lock, so the vehicle is still claimed
+        // and the booking is untouched.
+        $this->assertSame(BookingStatus::Confirmed, $booking->refresh()->status);
+        $this->assertNull($hold->refresh()->released_at);
     }
 
     // --- The hold ----------------------------------------------------------

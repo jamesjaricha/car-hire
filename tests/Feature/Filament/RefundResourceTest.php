@@ -221,6 +221,20 @@ final class RefundResourceTest extends TestCase
         $this->assertDatabaseCount('refund_disbursements', 0);
     }
 
+    /**
+     * The counter holds `refunds.disburse` but not `refunds.approve`, so a clerk
+     * can hand the money over and still cannot decide that it should go.
+     */
+    public function test_a_counter_clerk_is_offered_the_payout_button_but_not_approval(): void
+    {
+        $refund = $this->approvedRefund();
+
+        Livewire::actingAs(User::factory()->withRole(StaffRole::CounterClerk)->create())
+            ->test(ListRefunds::class, ['activeTab' => 'awaiting_payout'])
+            ->assertTableActionVisible('disburseRefund', $refund)
+            ->assertTableActionHidden('approveRefund', $refund);
+    }
+
     public function test_an_unapproved_refund_offers_no_payout_button(): void
     {
         $refund = $this->requestedRefund();

@@ -57,16 +57,18 @@ use Illuminate\Support\Facades\DB;
  *
  * WHO MAY DO THIS — A DECISION, NOT A TRANSCRIPTION
  *
- * §12 lists `refunds.request` and `refunds.approve` and no third permission, so
- * the specification does not say who hands the money over. This service requires
- * `refunds.approve`, which puts payout at Branch Manager and above.
+ * `refunds.disburse` is NOT in spec §12. §12 names `refunds.request` and
+ * `refunds.approve` and stops, because §9.3 separates requesting from approving
+ * and says nothing at all about who physically pays.
  *
- * The alternative reading is that a counter clerk should be able to hand back
- * cash, since they already collect and refund security deposits. That may well
- * be what the operator wants, and it would be a one-line change — but the safer
- * default is the one where the person releasing money is the one §9.3 already
- * trusts to authorise it. Recorded in `docs/OPEN-ITEMS.md` for the operator to
- * settle rather than left as an assumption nobody wrote down.
+ * Added with the operator's agreement on 2026-08-08 and held from Counter Clerk
+ * upwards. §12 already lets a clerk refund a security deposit across the
+ * counter; borrowing `refunds.approve` here would have meant the same clerk,
+ * facing the same customer, could hand back one kind of money and not the other.
+ *
+ * Nothing about this lets a clerk decide anything. They execute an approval
+ * somebody more senior gave, at an amount neither of them can edit, and their
+ * name goes on the disbursement reference.
  */
 final class RefundDisbursementService implements RefundDisbursementServiceContract
 {
@@ -83,8 +85,8 @@ final class RefundDisbursementService implements RefundDisbursementServiceContra
     ): RefundDisbursementResult {
         // Before any lock. Nothing about the answer depends on the refund's
         // state, and a refusal should not queue behind other transactions.
-        if (! $actor->hasPermissionTo(StaffPermission::RefundsApprove)) {
-            throw StaffPermissionDeniedException::missing(StaffPermission::RefundsApprove);
+        if (! $actor->hasPermissionTo(StaffPermission::RefundsDisburse)) {
+            throw StaffPermissionDeniedException::missing(StaffPermission::RefundsDisburse);
         }
 
         $disbursementReference = trim($disbursementReference);

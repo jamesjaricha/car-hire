@@ -111,10 +111,9 @@ final class DisburseRefundAction
     {
         $user = auth()->user();
 
-        // §12 names no permission for handing the money over, so this requires
-        // the one it does name for authorising it. See RefundDisbursementService
-        // and docs/OPEN-ITEMS.md — the operator may want clerks to do this.
-        if (! $user instanceof User || ! $user->hasPermissionTo(StaffPermission::RefundsApprove)) {
+        // `refunds.disburse` is not in §12 — see RefundDisbursementService for
+        // why it exists and why the counter holds it.
+        if (! $user instanceof User || ! $user->hasPermissionTo(StaffPermission::RefundsDisburse)) {
             return false;
         }
 

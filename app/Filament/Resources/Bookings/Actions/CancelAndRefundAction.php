@@ -324,10 +324,14 @@ final class CancelAndRefundAction
     {
         $user = auth()->user();
 
-        // §12 gives refunds.request to every role, which is the closest thing
-        // the specification has to a permission for cancelling. See
-        // BookingCancellationService and docs/OPEN-ITEMS.md.
-        if (! $user instanceof User || ! $user->hasPermissionTo(StaffPermission::RefundsRequest)) {
+        // Both halves of what this button does. `bookings.cancel` is not in §12
+        // — see BookingCancellationService — and asking for the refund
+        // permission too means the button is never offered to somebody who
+        // could cancel the booking but not raise the refund that follows it,
+        // which would leave a customer's money stranded.
+        if (! $user instanceof User
+            || ! $user->hasPermissionTo(StaffPermission::BookingsCancel)
+            || ! $user->hasPermissionTo(StaffPermission::RefundsRequest)) {
             return false;
         }
 

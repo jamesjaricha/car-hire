@@ -5,6 +5,41 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Phase 4 — Two permissions §12 never named · 2026-08-08
+
+A follow-up to the refunds slice, which exposed both gaps by giving the panel a
+way to reach them. Settled with the operator rather than left on a default.
+
+### Added
+
+- **`bookings.cancel`** — Counter Clerk and above. §12 lists fifteen permissions
+  and none covers ending a hire. `BookingCancellationService` shipped asserting
+  nothing, letting the calling screen's `refunds.request` stand in, so the real
+  answer to "who may cancel a booking" was "everybody" and the only place to
+  find it was a docblock. The reach is unchanged; the rule is now in the matrix,
+  the seeder and the roles screen where it can be reviewed.
+- **`refunds.disburse`** — Counter Clerk and above. §9.3 separates requesting
+  from approving and says nothing about who physically pays. Disbursement had
+  borrowed `refunds.approve`, which meant a clerk could hand back a security
+  deposit under §12 but not a refund, across the same counter, to the same
+  customer. Approval stays at Branch Manager: the counter executes a decision
+  somebody else made, at an amount neither of them can edit.
+
+`CancelAndRefundAction` now requires both `bookings.cancel` and
+`refunds.request`, so the button is never offered to someone who could cancel a
+booking but not raise the refund that must follow it — which would strand a
+customer's money.
+
+### ⚠ Deployment note
+
+These are new permission rows. **Any database seeded before this must have
+`RolesAndPermissionsSeeder` re-run**, or `hasPermissionTo()` will throw
+`PermissionDoesNotExist` rather than returning false. That is deliberate — a
+missing permission row is a deployment fault, and a silent denial gets diagnosed
+as a role misconfiguration and sent to the wrong person to fix.
+
+---
+
 ## Phase 4 — Refunds · 2026-08-08
 
 Spec §9, end to end: cancel a booking, compute what is owed, have a second person

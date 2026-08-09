@@ -54,21 +54,28 @@ final class StaffPermissionTest extends TestCase
     {
         // Transcribed from §12 by hand. If someone renames a case's value to
         // suit a naming convention, this is what stops it.
+        //
+        // Three of these are NOT in §12 and are marked below. Their names were
+        // chosen to read as though they were — same dot-separated grouping — so
+        // that the matrix stays legible, which makes it doubly worth having a
+        // hand-written list that fails loudly when one is added or moved.
         $this->assertSame([
             'payments.view',
             'payments.confirm-cash',
             'payments.confirm-bank-transfer',
             'payments.confirm-mobile-money',
-            'payments.record-manual',
+            'payments.record-manual',          // not in §12
             'payments.edit-manual-payment',
             'payments.extend-deadline',
             'bookings.reassign-vehicle',
             'bookings.override-short-notice',
+            'bookings.cancel',                 // not in §12
             'kyc.verify',
             'security-deposit.collect',
             'security-deposit.refund',
             'refunds.request',
             'refunds.approve',
+            'refunds.disburse',                // not in §12
             'cross-border.confirm',
             'payment-methods.manage',
         ], StaffPermission::names());

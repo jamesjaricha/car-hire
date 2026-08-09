@@ -122,9 +122,10 @@ nullable `branches.counter_clerk_may_confirm_cash` inheriting the global default
 when null — deliberately not built yet, because the business has not decided
 whether it wants the distinction at all. Due with the roles UI.
 
-**Three §12 permission decisions — SETTLED 2026-08-05.** Kept here because they
-are departures from the specification and a future reader should find the
-reasoning rather than rediscover the discrepancy.
+**Five §12 permission decisions — three SETTLED 2026-08-05, two 2026-08-08.**
+Kept here because they are departures from the specification and a future reader
+should find the reasoning rather than rediscover the discrepancy. The last two
+are recorded immediately above.
 
 1. `payments.edit-manual-payment` — §12 lists it without saying who holds it.
    **Branch Manager and above.** It changes a figure somebody has already relied
@@ -190,28 +191,32 @@ where the account and till numbers should be, and
 that; a customer being told to transfer money to nowhere is worse than the
 method being switched off. Due with the payment methods screen in Phase 4.
 
-**Two §12 permission gaps the refunds work exposed — NEED AN ANSWER.** Both are
-decisions for the operator, and both are currently resolved by the safest
-available default rather than by anything the specification says.
+**Two §12 permission gaps the refunds work exposed — SETTLED 2026-08-08.** Kept
+here because both are departures from the specification and a future reader
+should find the reasoning rather than rediscover the discrepancy.
 
-1. **Nobody owns cancelling a booking.** §12 lists fifteen permissions and none
-   of them covers ending a hire. `BookingCancellationService` therefore asserts
-   no permission of its own — a deliberate departure from ARCHITECTURE §9, taken
-   because inventing `bookings.cancel` silently would be a fourth undocumented
-   change to §12 and this project treats those as the operator's call.
-   Authorisation currently sits with the only caller: the panel's
-   cancel-and-refund action, gated on `refunds.request`, which every role holds.
-   **So a counter clerk can currently cancel a confirmed booking.** If that is
-   wrong, the answer is a new permission, and it must be added before a second
-   caller of that service exists.
+4. `bookings.cancel` — **not in §12 at all, added deliberately.** §12 lists
+   fifteen permissions and none covers ending a hire, which only became visible
+   once the panel could do it. The first implementation asserted nothing and let
+   the calling screen's `refunds.request` stand in, which meant the real answer
+   to "who may cancel a booking" was "everybody" and the only place to find it
+   was a service docblock. **Counter Clerk and above** — the clerk faces the
+   customer who wants to cancel, and cancelling only starts the process, because
+   the refund that follows still needs a manager to approve it.
 
-2. **Nobody owns handing the money over.** §12 names `refunds.request` and
-   `refunds.approve` and stops. `RefundDisbursementService` requires
-   `refunds.approve`, putting payout at Branch Manager and above. The plausible
-   alternative is that a counter clerk should be able to hand back cash — they
-   already collect and refund security deposits under §12 — in which case this is
-   a one-line change. Left at the stricter reading on purpose: the person
-   releasing money is the one §9.3 already trusts to authorise it.
+5. `refunds.disburse` — **not in §12 at all, added deliberately.** §9.3
+   separates requesting from approving and says nothing about who physically
+   pays. Borrowing `refunds.approve` for it would have meant a clerk could hand
+   back a security deposit — which §12 explicitly permits — but not a refund,
+   across the same counter, to the same customer. **Counter Clerk and above.**
+   They execute an approval somebody more senior gave, at an amount neither can
+   edit, and their name goes on the disbursement reference.
+
+⚠ **Both are new permission rows.** Any database seeded before 2026-08-08 needs
+`RolesAndPermissionsSeeder` re-run, or `hasPermissionTo()` will throw
+`PermissionDoesNotExist` rather than returning false — a missing permission row
+is treated as a deployment fault, deliberately, because a silent denial gets
+diagnosed as a role misconfiguration and sent to the wrong person.
 
 **KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
 KYC verified, balance settled and security deposit recorded. The latter two are

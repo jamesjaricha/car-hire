@@ -35,8 +35,18 @@ enum StaffRole: string
      *
      * WHERE THIS GOES BEYOND §12, AND WHY
      *
-     * Three decisions here are not in the specification. All were settled with
-     * the operator on 2026-08-05 rather than left as assumptions.
+     * Five decisions here are not in the specification. Three were settled with
+     * the operator on 2026-08-05 and two more on 2026-08-08, rather than left
+     * as assumptions.
+     *
+     * `bookings.cancel` and `refunds.disburse` are the later pair, both at
+     * Counter Clerk and above. §12 names no permission for ending a hire or for
+     * handing refund money over, which only became visible once the panel could
+     * do either. The clerk holds both because they are the person in the room:
+     * the one facing a customer who wants to cancel, and the one standing at the
+     * till when a cash refund is collected. Neither lets them decide anything —
+     * a cancellation's refund still needs a manager's approval, and a payout
+     * executes an approval somebody else gave at an amount neither can edit.
      *
      * `payments.edit-manual-payment` and `bookings.override-short-notice` are in
      * the §12 permission list but have no row in the §12 matrix, so the
@@ -76,10 +86,18 @@ enum StaffRole: string
                 // them three hours before pickup. Sending them away to find a
                 // manager is the friction spec §8.2's override exists to avoid.
                 StaffPermission::BookingsOverrideShortNotice,
+                // Not from §12. Settled with the operator 2026-08-08: the clerk
+                // is the one facing a customer who wants to cancel, and they can
+                // only start the process — the refund still needs a manager.
+                StaffPermission::BookingsCancel,
                 StaffPermission::KycVerify,
                 StaffPermission::SecurityDepositCollect,
                 StaffPermission::SecurityDepositRefund,
                 StaffPermission::RefundsRequest,
+                // Not from §12. Settled with the operator 2026-08-08: §12 lets a
+                // clerk hand back a security deposit across the counter, and a
+                // refund is the same act with somebody else's approval on it.
+                StaffPermission::RefundsDisburse,
             ],
 
             self::BranchManager => [
@@ -92,11 +110,13 @@ enum StaffRole: string
                 StaffPermission::PaymentsExtendDeadline,
                 StaffPermission::BookingsReassignVehicle,
                 StaffPermission::BookingsOverrideShortNotice,
+                StaffPermission::BookingsCancel,
                 StaffPermission::KycVerify,
                 StaffPermission::SecurityDepositCollect,
                 StaffPermission::SecurityDepositRefund,
                 StaffPermission::RefundsRequest,
                 StaffPermission::RefundsApprove,
+                StaffPermission::RefundsDisburse,
                 StaffPermission::CrossBorderConfirm,
             ],
 
