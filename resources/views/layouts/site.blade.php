@@ -60,6 +60,14 @@
     </header>
 
     <main id="main" class="flex-1">
+        {{-- Above the content, so an explanation can never be hidden behind
+             the thing it is explaining. --}}
+        @if (session('notice'))
+            <div class="px-4 sm:px-6">
+                <x-notice :message="session('notice')" />
+            </div>
+        @endif
+
         @yield('content')
     </main>
 

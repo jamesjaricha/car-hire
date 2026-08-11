@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Customer;
 
 use App\Enums\BookingStatus;
+use App\Enums\VehicleStatus;
 use App\Models\Booking;
 use App\Models\Branch;
 use App\Models\Customer;
@@ -104,6 +105,44 @@ final class BookingJourneyTest extends TestCase
     public function test_checkout_without_a_basket_sends_you_back_to_search(): void
     {
         $this->get(route('checkout'))->assertRedirect(route('home'));
+    }
+
+    /**
+     * REGRESSION. Three controller paths flashed a `notice` and the layout
+     * rendered none of them, so every one was silently dropped.
+     *
+     * These are the messages that matter most: each explains why something the
+     * customer expected did not happen, and two of the three say "nothing has
+     * been charged". A customer bounced back to search with no explanation
+     * reasonably concludes the site threw their booking away — or worse, that
+     * it took their money.
+     */
+    public function test_an_expired_basket_explains_itself_on_the_page(): void
+    {
+        $this->followingRedirects()
+            ->get(route('checkout'))
+            ->assertSuccessful()
+            ->assertSee('Your basket has expired');
+    }
+
+    /**
+     * The worst one to drop: they filled in the whole form before losing the
+     * race, so they need telling that nothing was taken from them.
+     */
+    public function test_losing_the_vehicle_at_checkout_says_nothing_was_charged(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+        $this->reserve($branch, $vehicle);
+
+        // Somebody else takes it in the meantime.
+        $vehicle->forceFill(['status' => VehicleStatus::Maintenance])->save();
+
+        $this->followingRedirects()
+            ->post(route('checkout.store'), $this->details())
+            ->assertSuccessful()
+            ->assertSee('Nothing has been charged');
+
+        $this->assertDatabaseCount('bookings', 0);
     }
 
     // --- Checkout -----------------------------------------------------------
