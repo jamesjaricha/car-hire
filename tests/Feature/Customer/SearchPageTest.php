@@ -148,15 +148,33 @@ final class SearchPageTest extends TestCase
             ->assertSee('another branch');
     }
 
+    /**
+     * The message is asserted, not just the failure.
+     *
+     * It first reused the domain exception's own text, which reads
+     * "Given start [2026-09-20T07:00:00+00:00]…" — internals, in UTC, showing
+     * times two hours from the ones the customer typed. Correct in a log,
+     * baffling on a search page.
+     */
     public function test_a_return_date_before_the_pickup_is_refused(): void
     {
         [$branch] = $this->fleet();
 
-        $this->get(route('search', [
+        $response = $this->get(route('search', [
             'branch' => $branch->getKey(),
             'pickup' => '2026-09-20T09:00',
             'dropoff' => '2026-09-18T09:00',
-        ]))->assertSessionHasErrors('dates');
+        ]));
+
+        $response->assertSessionHasErrors([
+            'dates' => 'Your return date needs to be after your pick-up date.',
+        ]);
+
+        // No raw timestamps, no bracketed internals.
+        $this->assertStringNotContainsString(
+            '+00:00',
+            (string) session('errors')?->first('dates'),
+        );
     }
 
     public function test_an_unknown_branch_is_refused(): void

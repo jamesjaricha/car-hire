@@ -53,11 +53,18 @@ final class SearchController extends Controller
 
         try {
             $range = $this->rangeFrom((string) $data['pickup'], (string) $data['dropoff']);
-        } catch (InvalidDateRangeException $e) {
+        } catch (InvalidDateRangeException) {
             // Back to the form with the reason, rather than an error page. A
             // customer who typed the dates the wrong way round has made an
             // ordinary mistake.
-            throw ValidationException::withMessages(['dates' => $e->getMessage()]);
+            //
+            // The exception's own message is deliberately NOT reused. It reads
+            // "Given start [2026-08-25T07:00:00+00:00]…" — internals, in UTC,
+            // showing times two hours from the ones the customer actually
+            // typed. Correct for a log, baffling on a search page.
+            throw ValidationException::withMessages([
+                'dates' => 'Your return date needs to be after your pick-up date.',
+            ]);
         }
 
         $vehicles = $this->availability->availableVehicles($branch, $range);

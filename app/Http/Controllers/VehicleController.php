@@ -49,8 +49,11 @@ final class VehicleController extends Controller
 
         try {
             $range = $this->rangeFrom((string) $data['pickup'], (string) $data['dropoff']);
-        } catch (InvalidDateRangeException $e) {
-            throw ValidationException::withMessages(['dates' => $e->getMessage()]);
+        } catch (InvalidDateRangeException) {
+            // The customer's words, not the exception's. See SearchController.
+            throw ValidationException::withMessages([
+                'dates' => 'Your return date needs to be after your pick-up date.',
+            ]);
         }
 
         // Collecting from a branch this vehicle is not at is not a page that
