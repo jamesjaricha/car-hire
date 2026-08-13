@@ -159,6 +159,50 @@ attribute.
 
 Two more regression tests in `BookingJourneyTest`.
 
+### A wider demo fleet · 2026-08-13
+
+The home page looked like placeholder content. It was not — `HomeController`
+has always queried live rows — but with three classes against a four-column
+grid it rendered three cards and a gap, every one of them falling back to the
+typographic silhouette because no photographs had been uploaded.
+
+Diagnosed before changing anything, which mattered: had the cause been the
+`fullyPriced()` filter withholding classes for a missing §15 figure, seeding
+more cars would have fixed nothing. It was not — all three classes were priced.
+
+- **`DemoFleetSeeder` widened to 6 classes and 18 vehicles** across both
+  branches, table-driven so it reads as data rather than eighteen method calls.
+  Added Executive, Safari 4x4 and Minibus — the corporate, tourism and
+  group-transfer cases a Zambian operator actually quotes on. Livingstone
+  carries the tourism vehicles and Lusaka the town ones, because a demo where
+  both branches return identical results does not demonstrate branches.
+- **Specifications now vary per vehicle.** Every seeded car was previously
+  5 seats, manual, petrol, so the specification chips on every card were
+  identical — which is itself why the page read as fake. Seats, transmission,
+  fuel and year now differ, including 14-seat minibuses and 7-seat SUVs.
+- **One rate override seeded** (the Land Cruiser), so the class-to-vehicle
+  pricing chain is exercised by the demo data and not only by unit tests.
+- **`DemoFleetSeederTest`** — seven tests. Development data is worth testing
+  here because every way it breaks is silent: a class missing one §15 figure is
+  withheld from search with nothing on screen to explain it, and a seeder that
+  updated rather than created would discard photographs an operator had
+  uploaded through the panel on the next `db:seed`.
+
+### Decisions
+
+- **Photographs stay a panel job, not a seeded asset.** Committing stock car
+  images would populate a fresh install with pictures of vehicles the operator
+  does not own, and `VehicleClassForm` has had multi-upload, reorder and crop
+  since Phase 5. Uploading them is also the fleet-manager workflow worth
+  demonstrating, so doing it by hand is the point rather than a chore.
+- **Every seeded class is fully priced, and a test enforces it.** The
+  withholding behaviour is correct and stays untouched; what the test prevents
+  is a seventh demo class being added without its figures and quietly shrinking
+  the shop window.
+- **`take(4)` and the four-column grid are unchanged.** Six classes into
+  `take(4)` fills exactly one row. Showing all six would leave a ragged second
+  row of two.
+
 ---
 
 ## Phase 4 — Payment methods, and money sent nowhere · 2026-08-09

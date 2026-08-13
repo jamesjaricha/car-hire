@@ -355,7 +355,12 @@ carhire/
 │   │                                          "no deposit required" to customers.
 │   └── seeders/
 │       ├── DatabaseSeeder.php                 Note the WithoutModelEvents warning.
-│       ├── DemoFleetSeeder.php                Local only. Every figure a placeholder.
+│       ├── DemoFleetSeeder.php            ★   Local only. Every figure a
+│       │                                      placeholder. Table-driven: 6
+│       │                                      classes, 18 vehicles, 2 branches.
+│       │                                      firstOrCreate throughout, so
+│       │                                      re-seeding never discards a
+│       │                                      photograph uploaded in the panel.
 │       ├── DemoStaffSeeder.php                Local only, and throws elsewhere.
 │       │                                      One account per role, plus a
 │       │                                      roleless one that must be refused.
@@ -402,6 +407,11 @@ carhire/
 │   │   │                                      entry.
 │   │   ├── AvailabilityServiceTest.php
 │   │   ├── BasketServiceTest.php              Price frozen against a rate change.
+│   │   ├── DemoFleetSeederTest.php        ★   Development data, tested because
+│   │   │                                     every way it breaks is silent: an
+│   │   │                                     unpriced class vanishes from search,
+│   │   │                                     and a non-idempotent seeder eats
+│   │   │                                     photographs uploaded in the panel.
 │   │   ├── BookingCancellationServiceTest.php Endings, and the hold release the
 │   │   │                                      revenue leak depended on.
 │   │   ├── BookingConcurrencyTest.php     ★   Real processes racing a whole checkout.
