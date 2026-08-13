@@ -53,8 +53,16 @@
                             <label for="full_name" class="block text-sm font-medium text-ink-800">
                                 Full name <span class="text-danger-600" aria-hidden="true">*</span>
                             </label>
+                            {{-- Focus jumps to the first field with a problem
+                                 after a failed submit. Without it the page
+                                 reloads at the top and the customer has to
+                                 hunt for what went wrong — on a phone, where
+                                 the errors are below the fold, that is most of
+                                 the form. --}}
                             <input id="full_name" name="full_name" type="text" required
                                    autocomplete="name"
+                                   @if ($errors->has('full_name')) autofocus @endif
+                                   aria-describedby="{{ $errors->has('full_name') ? 'full_name_error' : '' }}"
                                    value="{{ old('full_name') }}"
                                    @class([
                                        'mt-1.5 w-full rounded-xl py-3 text-base shadow-sm focus:ring-2 focus:ring-brand-600/30',
@@ -62,7 +70,7 @@
                                        'border-danger-600 focus:border-danger-600' => $errors->has('full_name'),
                                    ])>
                             @error('full_name')
-                                <p class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
+                                <p id="full_name_error" class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
                             @enderror
                         </div>
 
@@ -74,6 +82,8 @@
                                  phone and lets the browser autofill. --}}
                             <input id="email" name="email" type="email" required
                                    autocomplete="email" inputmode="email"
+                                   @if ($errors->has('email') && ! $errors->has('full_name')) autofocus @endif
+                                   aria-describedby="{{ $errors->has('email') ? 'email_error' : '' }}"
                                    value="{{ old('email') }}"
                                    @class([
                                        'mt-1.5 w-full rounded-xl py-3 text-base shadow-sm focus:ring-2 focus:ring-brand-600/30',
@@ -81,7 +91,7 @@
                                        'border-danger-600 focus:border-danger-600' => $errors->has('email'),
                                    ])>
                             @error('email')
-                                <p class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
+                                <p id="email_error" class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
                             @enderror
                         </div>
 
@@ -92,18 +102,20 @@
                             <input id="phone" name="phone" type="tel" required
                                    autocomplete="tel" inputmode="tel"
                                    placeholder="097 000 0000"
+                                   @if ($errors->has('phone') && ! $errors->hasAny(['full_name', 'email'])) autofocus @endif
+                                   aria-describedby="phone_help{{ $errors->has('phone') ? ' phone_error' : '' }}"
                                    value="{{ old('phone') }}"
                                    @class([
                                        'mt-1.5 w-full rounded-xl py-3 text-base shadow-sm focus:ring-2 focus:ring-brand-600/30',
                                        'border-ink-300 focus:border-brand-600' => ! $errors->has('phone'),
                                        'border-danger-600 focus:border-danger-600' => $errors->has('phone'),
                                    ])>
-                            <p class="mt-1.5 text-sm text-ink-500">
+                            <p id="phone_help" class="mt-1.5 text-sm text-ink-500">
                                 097…, +26097… and 26097… are all understood. We send your payment
                                 reminder here.
                             </p>
                             @error('phone')
-                                <p class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
+                                <p id="phone_error" class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
                             @enderror
                         </div>
                     </div>

@@ -168,6 +168,33 @@ final class BookingJourneyTest extends TestCase
         $this->assertDatabaseHas('customers', ['email' => 'chanda@example.com']);
     }
 
+    /**
+     * The customer reads a label, not a column name. "The phone field is
+     * required" under a field labelled "Mobile number" sends them hunting for
+     * a field that is not on the page.
+     */
+    public function test_validation_messages_use_the_labels_on_screen(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+        $this->reserve($branch, $vehicle);
+
+        $this->post(route('checkout.store'), $this->details([
+            'phone' => null,
+            'full_name' => null,
+        ]))->assertSessionHasErrors(['phone', 'full_name']);
+
+        $errors = session('errors');
+
+        $this->assertStringContainsString('mobile number', $errors->first('phone'));
+        $this->assertStringContainsString('full name', $errors->first('full_name'));
+
+        // The column name must not surface. "The phone field is required"
+        // under a field labelled "Mobile number" sends somebody looking for a
+        // field that is not on the page.
+        $this->assertStringNotContainsString('full_name', $errors->first('full_name'));
+        $this->assertStringNotContainsString('phone field', $errors->first('phone'));
+    }
+
     public function test_the_terms_must_be_accepted(): void
     {
         [$branch, $vehicle] = $this->fleet();

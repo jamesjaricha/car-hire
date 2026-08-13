@@ -96,6 +96,12 @@ final class CheckoutController extends Controller
             'terms' => ['accepted'],
         ], [
             'terms.accepted' => 'Please accept the terms and conditions to continue.',
+        ], [
+            // The customer reads a label, not a column name. "The phone field
+            // is required" under a field labelled "Mobile number" makes them
+            // hunt for a field that is not on the page.
+            'full_name' => 'full name',
+            'phone' => 'mobile number',
         ]);
 
         $vehicle = Vehicle::query()->with('vehicleClass')->findOrFail($basket->vehicleId);

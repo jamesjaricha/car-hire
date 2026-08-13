@@ -32,7 +32,12 @@
             {{-- min-h-11 is 44px: the smallest target a thumb hits reliably.
                  The mark inside is 36px, which looks right but is not a
                  comfortable tap on its own. --}}
-            <a href="{{ route('home') }}" class="flex min-h-11 items-center gap-2.5">
+            {{-- An explicit ring rather than the browser's. The UA default is
+                 visible here, but its colour is chosen by the browser and this
+                 header is dark — a deliberate white ring reads the same in
+                 every browser, and matches the buttons further down the page. --}}
+            <a href="{{ route('home') }}"
+               class="flex min-h-11 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
                 {{-- A placeholder mark, not a logo. The operator has no brand
                      yet; everything here is a token swap away from his. --}}
                 <span aria-hidden="true" class="flex size-9 items-center justify-center rounded-xl bg-brand-600">
@@ -48,11 +53,11 @@
 
             <nav class="flex items-center gap-1 text-sm" aria-label="Main">
                 <a href="{{ route('home') }}"
-                   class="flex min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white">
+                   class="flex min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                     Find a car
                 </a>
                 <a href="{{ route('home') }}#how-it-works"
-                   class="hidden min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white sm:flex">
+                   class="hidden min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:flex">
                     How it works
                 </a>
             </nav>
