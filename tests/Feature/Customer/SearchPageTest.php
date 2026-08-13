@@ -187,6 +187,64 @@ final class SearchPageTest extends TestCase
     }
 
     /**
+     * REGRESSION. The search form only rendered the `dates` error key, so a
+     * failure on `branch`, `pickup` or `dropoff` — reachable with a
+     * hand-altered URL, or an emptied required field before JavaScript
+     * validation runs — sent the customer back to a page that gave no reason
+     * why nothing happened. `checkout.blade.php` already had this fixed; the
+     * search form did not.
+     */
+    public function test_a_branch_validation_failure_is_shown_on_the_page(): void
+    {
+        $this->followingRedirects()
+            ->get(route('search', [
+                'branch' => 999999,
+                'pickup' => '2026-09-20T09:00',
+                'dropoff' => '2026-09-23T09:00',
+            ]))
+            ->assertSuccessful()
+            ->assertSee('selected branch is invalid', escape: false);
+    }
+
+    public function test_a_missing_pickup_is_shown_on_the_page(): void
+    {
+        [$branch] = $this->fleet();
+
+        $this->followingRedirects()
+            ->get(route('search', [
+                'branch' => $branch->getKey(),
+                'pickup' => '',
+                'dropoff' => '2026-09-23T09:00',
+            ]))
+            ->assertSuccessful()
+            ->assertSee('pickup field is required', escape: false);
+    }
+
+    /**
+     * A failed submit must not silently reset the branch the customer chose
+     * back to the first one in the list — that reads as the site having
+     * ignored their answer rather than flagging a problem with a different
+     * field.
+     */
+    public function test_a_failed_submit_keeps_the_chosen_branch_selected(): void
+    {
+        [$branch] = $this->fleet();
+        $other = Branch::factory()->create(['name' => 'Kitwe Branch']);
+
+        $response = $this->followingRedirects()->get(route('search', [
+            'branch' => $other->getKey(),
+            'pickup' => '2026-09-20T09:00',
+            'dropoff' => '2026-09-18T09:00',
+        ]));
+
+        $response->assertSuccessful();
+        $this->assertMatchesRegularExpression(
+            '/<option value="'.$other->getKey().'" selected/',
+            $response->getContent(),
+        );
+    }
+
+    /**
      * ARCHITECTURE §5: the two inputs are wall-clock Lusaka, everything stored
      * is UTC, and the conversion happens at this edge. Zambia is UTC+2, so an
      * 09:00 pickup is 07:00 UTC — getting this wrong moves somebody's

@@ -29,13 +29,22 @@
             </label>
             <select id="branch"
                     name="branch"
-                    class="mt-1.5 w-full rounded-xl border-ink-300 bg-white py-3 text-base text-ink-900 shadow-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-600/30">
+                    @if ($errors->has('branch')) autofocus @endif
+                    aria-describedby="{{ $errors->has('branch') ? 'branch_error' : '' }}"
+                    @class([
+                        'mt-1.5 w-full rounded-xl bg-white py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
+                        'border-ink-300 focus:border-brand-600' => ! $errors->has('branch'),
+                        'border-danger-600 focus:border-danger-600' => $errors->has('branch'),
+                    ])>
                 @foreach ($branches as $branch)
-                    <option value="{{ $branch->id }}" @selected((int) $branchId === (int) $branch->id)>
+                    <option value="{{ $branch->id }}" @selected((int) old('branch', $branchId) === (int) $branch->id)>
                         {{ $branch->name }}
                     </option>
                 @endforeach
             </select>
+            @error('branch')
+                <p id="branch_error" class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
+            @enderror
         </div>
 
         <div>
@@ -49,7 +58,16 @@
                    name="pickup"
                    value="{{ old('pickup', $defaultPickup) }}"
                    required
-                   class="mt-1.5 w-full rounded-xl border-ink-300 py-3 text-base text-ink-900 shadow-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-600/30">
+                   @if ($errors->has('pickup') && ! $errors->has('branch')) autofocus @endif
+                   aria-describedby="{{ $errors->has('pickup') ? 'pickup_error' : '' }}"
+                   @class([
+                       'mt-1.5 w-full rounded-xl py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
+                       'border-ink-300 focus:border-brand-600' => ! $errors->has('pickup'),
+                       'border-danger-600 focus:border-danger-600' => $errors->has('pickup'),
+                   ])>
+            @error('pickup')
+                <p id="pickup_error" class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
+            @enderror
         </div>
 
         <div>
@@ -61,7 +79,16 @@
                    name="dropoff"
                    value="{{ old('dropoff', $defaultDropoff) }}"
                    required
-                   class="mt-1.5 w-full rounded-xl border-ink-300 py-3 text-base text-ink-900 shadow-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-600/30">
+                   @if ($errors->has('dropoff') && ! $errors->hasAny(['branch', 'pickup'])) autofocus @endif
+                   aria-describedby="{{ $errors->has('dropoff') ? 'dropoff_error' : '' }}"
+                   @class([
+                       'mt-1.5 w-full rounded-xl py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
+                       'border-ink-300 focus:border-brand-600' => ! $errors->has('dropoff'),
+                       'border-danger-600 focus:border-danger-600' => $errors->has('dropoff'),
+                   ])>
+            @error('dropoff')
+                <p id="dropoff_error" class="mt-1.5 text-sm text-danger-600" role="alert">{{ $message }}</p>
+            @enderror
         </div>
 
         <div class="flex items-end">

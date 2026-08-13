@@ -287,7 +287,10 @@ carhire/
 │   │                                         and a separate `ink` scale for the
 │   │                                         money surfaces. Read the header.
 │   └── views/
-│       ├── layouts/site.blade.php            Public layout. Skip link, fonts.
+│       ├── layouts/site.blade.php            Public layout. Skip link, fonts,
+│       │                                     explicit focus rings on the dark
+│       │                                     header (the UA default reads
+│       │                                     inconsistently there).
 │       ├── home.blade.php                    Hero, fleet, how booking works.
 │       ├── search.blade.php                  Results, grouped by class.
 │       ├── vehicle.blade.php                 One vehicle, itemised price, both
@@ -299,7 +302,10 @@ carhire/
 │       │                                     Never says "confirmed" — §7.3.
 │       └── components/
 │           ├── search-form.blade.php         Plain GET. Shareable URL, works
-│           │                                 without JavaScript.
+│           │                                 without JavaScript. Every field
+│           │                                 renders its own error, not just
+│           │                                 `dates` — a hand-altered URL can
+│           │                                 fail branch/pickup/dropoff too.
 │           └── vehicle-card.blade.php    ★   Built to work WITHOUT a
 │                                             photograph. Silhouette fallback;
 │                                             §6 deposit shown here because it
@@ -445,25 +451,27 @@ carhire/
 
 ## Not yet built
 
-Phases 1 to 3 are complete. A booking can be searched for, priced, held, taken,
-paid for, confirmed and expired, and every consequential step is audited. There
-is still no user interface of any kind.
+Phases 1 to 3 are complete, and Phase 5 (search through confirmation) is
+complete and demonstrable at `carhire.test`. Phase 4's back office is
+deliberately paused mid-way — see the direction change in `project_carhire.md`
+and `CHANGELOG.md` — while the operator sees what exists and decides whether
+these modules are what he wants.
 
-**Phase 4 — Admin, in progress.** Done: the access gate, the booking screens with
-the part-paid-past-deadline queue, deadline extension, counter payments, and
-refunds end to end (§9). Still to come: the payments resource and the unmatched
-queue, fleet and settings CRUD — which is what finally lets the operator answer
-the §15 placeholders — users and roles UI, and vehicle reassignment (§8.3).
+**Phase 4 — Admin, paused mid-way.** Done: the access gate, the booking screens
+with the part-paid-past-deadline queue, deadline extension, counter payments,
+refunds end to end (§9), settings and vehicle-class pricing, and payment
+methods. Parked until after the demo: the payments resource and the unmatched
+queue, vehicles/branches CRUD, users and roles UI, and vehicle reassignment
+(§8.3).
 
-**Phase 5 — Customer UI.** Search, vehicle detail, basket, checkout,
-confirmation. Guest flow first, account linking second.
+**Phase 5 — Customer UI. Complete.** Search, vehicle detail, basket, guest
+checkout, confirmation. Account linking (as opposed to guest checkout) is not
+built — §1.4 only requires that a match never link silently, not that linking
+exist yet.
 
-**Phase 6 — Notifications, KYC upload, cross-border.** Including the payment
-reminder of spec §8.4 and the cross-border tables that turn
+**Phase 6 — Notifications, KYC upload, cross-border.** Not started. Includes
+the payment reminder of spec §8.4 and the cross-border tables that turn
 `awaiting_cross_border` into a workflow rather than a state.
 
-Carried into Phase 4 and recorded in OPEN-ITEMS.md: releasing a hold when a car
-comes back early, and the screens for the two queues above.
-
-Phases 4 to 6 are untouched: the admin panel, the customer-facing UI,
-notifications, KYC upload and cross-border. See CHANGELOG.md for what exists.
+Carried forward and recorded in OPEN-ITEMS.md: releasing a hold when a car
+comes back early, and the parked Phase 4 screens above.

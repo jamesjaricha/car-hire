@@ -113,6 +113,32 @@ in what two correct numbers meant when placed next to each other.
   nothing. What matters is that a known email produces the same outcome as an
   unknown one and is **not silently linked** to the existing customer.
 
+### Polish pass · 2026-08-13
+
+Checkout's validation already read the on-screen labels rather than column
+names, focused the first errored field, and wired `aria-describedby`. The
+search form — the first form on the site, and the one most likely to be
+reached with a hand-altered URL — did not have any of that.
+
+- **`checkout.blade.php`** — same labels-not-columns treatment for `full_name`
+  and `phone`, plus the focus and `aria-describedby` wiring. Header links in
+  `layouts/site.blade.php` gained an explicit focus ring, because the browser
+  default reads inconsistently against a dark header.
+- **`search-form.blade.php`** — `branch`, `pickup` and `dropoff` now each
+  render their own error, with the same border, `aria-describedby` and
+  autofocus treatment. Before this, only the `dates` key (thrown after
+  validation passes, for a reversed range) had any display markup at all — a
+  failure on the other three rendered nowhere, reachable simply by hand-editing
+  the URL's `branch` parameter. `dates` stays a page-level message because it
+  is not a single field's fault.
+- **The branch `<select>` now reads `old('branch', $branchId)`.** It previously
+  read `$branchId` only, so a failed submit silently reset the customer's
+  choice back to the first branch in the list — indistinguishable from the
+  site having ignored what they picked.
+
+Three regression tests added to `SearchPageTest`, mirroring the ones already
+in `BookingJourneyTest` for checkout.
+
 ---
 
 ## Phase 4 — Payment methods, and money sent nowhere · 2026-08-09
