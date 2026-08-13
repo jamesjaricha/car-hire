@@ -294,12 +294,20 @@ carhire/
 │       ├── home.blade.php                    Hero, fleet, how booking works.
 │       ├── search.blade.php                  Results, grouped by class.
 │       ├── vehicle.blade.php                 One vehicle, itemised price, both
-│       │                                     deposits named separately.
+│       │                                     deposits named separately. Renders
+│       │                                     any $errors from a raw POST to
+│       │                                     basket.store — not reachable
+│       │                                     through its own hidden-field form,
+│       │                                     fixed for parity anyway.
 │       ├── checkout.blade.php                Three fields (§1.3), pay-in-full
 │       │                                     choice (§5), method (§8.2).
 │       ├── confirmation.blade.php        ★   The screen a customer stares at
 │       │                                     while deciding to send money.
 │       │                                     Never says "confirmed" — §7.3.
+│       │                                     The copy-reference label is an
+│       │                                     aria-live region: the visual
+│       │                                     "Copied" swap (app.js) needed a
+│       │                                     screen-reader announcement too.
 │       └── components/
 │           ├── search-form.blade.php         Plain GET. Shareable URL, works
 │           │                                 without JavaScript. Every field

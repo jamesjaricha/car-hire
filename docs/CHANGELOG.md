@@ -139,6 +139,26 @@ reached with a hand-altered URL — did not have any of that.
 Three regression tests added to `SearchPageTest`, mirroring the ones already
 in `BookingJourneyTest` for checkout.
 
+### The rest of the sweep · same day
+
+`vehicle.blade.php` and `confirmation.blade.php`, checked for the same three
+faults: an unrendered error key, a missing focus ring, an unwired ARIA
+attribute.
+
+- **`vehicle.blade.php`** now renders `$errors` if a POST straight to
+  `basket.store` fails — not reachable through this page's own form, since its
+  fields are hidden and copied verbatim from a URL already validated to render
+  the page, but the same bug class as the two fixes above, and cheap to close.
+  The "Back to results" link and the "see what else is free" link (inside the
+  dark price card, where the browser default ring reads poorly) both gained an
+  explicit focus ring.
+- **`confirmation.blade.php`** — the "Copy" button's label visually changes to
+  "Copied" (`app.js`), but nothing told a screen reader that had happened. The
+  label is now `aria-live="polite"`, so the state change that a sighted
+  customer sees is also announced to one who cannot.
+
+Two more regression tests in `BookingJourneyTest`.
+
 ---
 
 ## Phase 4 — Payment methods, and money sent nowhere · 2026-08-09

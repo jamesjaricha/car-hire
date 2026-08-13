@@ -13,12 +13,28 @@
     <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
 
         <a href="{{ route('search', ['branch' => $branch->id, 'pickup' => $pickupInput, 'dropoff' => $dropoffInput]) }}"
-           class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-600 transition-colors duration-150 hover:text-ink-900">
+           class="inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-ink-600 transition-colors duration-150 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
             <svg aria-hidden="true" class="size-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
             </svg>
             Back to results
         </a>
+
+        {{-- Reached only if a POST straight to basket.store carries a bad
+             vehicle, branch or date pair — not reachable through this page's
+             own form, whose fields are hidden and copied from a URL that was
+             already validated to render it. Kept anyway: search-form.blade.php
+             and checkout.blade.php both had the same class of bug, where a
+             failure rendered nowhere and the customer was sent back to a page
+             giving no reason why. --}}
+        @if ($errors->any())
+            <div class="mt-4 flex items-start gap-2 rounded-xl border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700" role="alert">
+                <svg aria-hidden="true" class="mt-0.5 size-4 shrink-0 text-danger-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v4a1 1 0 102 0V7zm-1 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                </svg>
+                <span>{{ $errors->first() }}</span>
+            </div>
+        @endif
 
         <div class="mt-4 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
 
@@ -189,7 +205,7 @@
                             <p class="rounded-xl bg-ember-600/15 p-3 text-center text-sm text-ember-100">
                                 This vehicle has just been taken for those dates.
                                 <a href="{{ route('search', ['branch' => $branch->id, 'pickup' => $pickupInput, 'dropoff' => $dropoffInput]) }}"
-                                   class="font-semibold underline">See what else is free</a>.
+                                   class="rounded font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">See what else is free</a>.
                             </p>
                         @endif
                     </div>

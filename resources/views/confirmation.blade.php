@@ -70,7 +70,7 @@
                             <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.62V15.5a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 017 15.5v-12z"/>
                             <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-.5h-4A2.5 2.5 0 016.5 13.5V6h-2z"/>
                         </svg>
-                        <span data-copy-label>Copy</span>
+                        <span data-copy-label aria-live="polite">Copy</span>
                     </button>
                 </div>
             </div>

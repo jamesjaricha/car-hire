@@ -75,6 +75,30 @@ final class BookingJourneyTest extends TestCase
         ]))->assertNotFound();
     }
 
+    /**
+     * REGRESSION. Only reachable by posting straight to basket.store rather
+     * than through this page's own form — its fields are hidden and copied
+     * from a URL already validated to render the page, so a normal visit
+     * cannot trigger this. Fixed anyway, for the same reason search-form and
+     * checkout were: a validation failure with nowhere to render sends the
+     * customer back to a page giving no reason why nothing happened.
+     */
+    public function test_a_basket_validation_failure_is_shown_on_the_vehicle_page(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+
+        $this->from($this->vehicleUrl($branch, $vehicle))
+            ->followingRedirects()
+            ->post(route('basket.store'), [
+                'vehicle' => $vehicle->getKey(),
+                'branch' => $branch->getKey(),
+                'pickup' => '2026-09-20T09:00',
+                'dropoff' => '2026-09-18T09:00',
+            ])
+            ->assertSuccessful()
+            ->assertSee('Your return date needs to be after your pick-up date.');
+    }
+
     // --- Basket -------------------------------------------------------------
 
     /**
@@ -333,6 +357,28 @@ final class BookingJourneyTest extends TestCase
             ->assertSuccessful()
             ->assertSee('refundable security deposit of '.$booking->currency.' '
                 .number_format((float) $booking->security_deposit_amount, 2));
+    }
+
+    /**
+     * REGRESSION. The "Copy" label visually changes to "Copied" (app.js), but
+     * nothing told a screen reader that had happened — a sighted customer gets
+     * confirmation their reference copied, a screen-reader user gets silence.
+     */
+    public function test_the_copy_button_label_is_a_live_region(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+        $this->reserve($branch, $vehicle);
+        $this->post(route('checkout.store'), $this->details());
+
+        $booking = Booking::query()->firstOrFail();
+
+        $response = $this->get(route('booking.confirmation', ['reference' => $booking->reference]));
+
+        $response->assertSuccessful();
+        $this->assertMatchesRegularExpression(
+            '/data-copy-label aria-live="polite"/',
+            $response->getContent(),
+        );
     }
 
     public function test_an_unknown_reference_is_not_found(): void
