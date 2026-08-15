@@ -90,6 +90,12 @@ final class RolesAndPermissionsSeederTest extends TestCase
         'refunds.approve',
         'refunds.disburse',
         'cross-border.confirm',
+        // Not from §12. Settled with the operator 2026-08-13, when the panel
+        // first had a screen for individual vehicles. A vehicle is local — the
+        // manager of the branch it sits at is who knows it is off the road.
+        // Deliberately narrower than `fleet.manage`, which stays Super Admin
+        // because class pricing applies across every branch.
+        'fleet.manage-vehicles',
     ];
 
     public function test_it_creates_every_permission_in_the_specification(): void
@@ -119,6 +125,7 @@ final class RolesAndPermissionsSeederTest extends TestCase
             'payment-methods.manage',
             'settings.manage',
             'fleet.manage',
+            'fleet.manage-vehicles',
         ], $stored);
     }
 
@@ -216,6 +223,39 @@ final class RolesAndPermissionsSeederTest extends TestCase
         $this->assertFalse($manager->hasPermissionTo(StaffPermission::FleetManage));
 
         $this->assertTrue($admin->hasPermissionTo(StaffPermission::SettingsManage));
+        $this->assertTrue($admin->hasPermissionTo(StaffPermission::FleetManage));
+    }
+
+    /**
+     * The two fleet permissions are not the same power, and the gap between
+     * them is the point.
+     *
+     * A Branch Manager may maintain the cars at their branch — mark one off the
+     * road, correct a registration, add a new arrival — because that is local
+     * knowledge and routing it through Head Office is how a fleet list goes
+     * stale. They may NOT touch pricing, because a class rate applies to every
+     * branch holding that class.
+     *
+     * The seam that has to hold: a vehicle carries nullable rate and deposit
+     * OVERRIDES, so "edit a vehicle" would hand back the pricing power that
+     * `fleet.manage` was withheld to protect. `VehicleForm` disables both fields
+     * without `fleet.manage`; this asserts the permissions underneath that.
+     */
+    public function test_a_branch_manager_may_edit_vehicles_but_not_price_them(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $manager = User::factory()->withRole(StaffRole::BranchManager)->create();
+        $clerk = User::factory()->withRole(StaffRole::CounterClerk)->create();
+        $admin = User::factory()->withRole(StaffRole::SuperAdmin)->create();
+
+        $this->assertTrue($manager->hasPermissionTo(StaffPermission::FleetManageVehicles));
+        $this->assertFalse($manager->hasPermissionTo(StaffPermission::FleetManage));
+
+        // A clerk serves customers; they do not maintain the fleet.
+        $this->assertFalse($clerk->hasPermissionTo(StaffPermission::FleetManageVehicles));
+
+        $this->assertTrue($admin->hasPermissionTo(StaffPermission::FleetManageVehicles));
         $this->assertTrue($admin->hasPermissionTo(StaffPermission::FleetManage));
     }
 

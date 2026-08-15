@@ -118,6 +118,13 @@ enum StaffRole: string
                 StaffPermission::RefundsApprove,
                 StaffPermission::RefundsDisburse,
                 StaffPermission::CrossBorderConfirm,
+                // Not from §12. Settled with the operator 2026-08-13. A vehicle
+                // is local in a way a class is not: it sits at one branch, and
+                // the manager there is who knows it has gone in for repair.
+                // Deliberately NOT `fleet.manage` — the two price-override
+                // fields on a vehicle stay Super Admin, or repricing would come
+                // back through a side door. See the permission's declaration.
+                StaffPermission::FleetManageVehicles,
             ],
 
             // Everything, including enabling and disabling payment methods,

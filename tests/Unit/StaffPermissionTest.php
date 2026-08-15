@@ -55,10 +55,19 @@ final class StaffPermissionTest extends TestCase
         // Transcribed from §12 by hand. If someone renames a case's value to
         // suit a naming convention, this is what stops it.
         //
-        // Three of these are NOT in §12 and are marked below. Their names were
-        // chosen to read as though they were — same dot-separated grouping — so
-        // that the matrix stays legible, which makes it doubly worth having a
-        // hand-written list that fails loudly when one is added or moved.
+        // SIX of these are NOT in §12 and are marked below — the count said
+        // three while the list already marked five, so it is spelled out here
+        // rather than trusted: payments.record-manual, bookings.cancel,
+        // refunds.disburse, settings.manage, fleet.manage, fleet.manage-vehicles.
+        //
+        // Their names were chosen to read as though they were in §12 — same
+        // dot-separated grouping — so that the matrix stays legible. That is
+        // exactly why a hand-written list earns its place: an invented
+        // permission is indistinguishable from a specified one at a glance, and
+        // this fails loudly when one is added or moved.
+        //
+        // Order is the enum's declaration order, so a case inserted in the
+        // middle fails here too rather than only changing the tail.
         $this->assertSame([
             'payments.view',
             'payments.confirm-cash',
@@ -80,6 +89,7 @@ final class StaffPermissionTest extends TestCase
             'payment-methods.manage',
             'settings.manage',                 // not in §12
             'fleet.manage',                    // not in §12
+            'fleet.manage-vehicles',           // not in §12
         ], StaffPermission::names());
     }
 

@@ -146,10 +146,39 @@ enum StaffPermission: string
      * maintaining their own vehicles is reasonable: class pricing is not local.
      * The daily rate, the damage waiver and the excess on a class apply to every
      * branch that holds one, so this screen changes what customers are charged
-     * across the business. When vehicle-level CRUD arrives it can take a
-     * narrower permission of its own.
+     * across the business.
+     *
+     * That last sentence anticipated `fleet.manage-vehicles`, which arrived on
+     * 2026-08-13 and is the narrower permission it describes. This case now also
+     * carries a second job: it gates the two PRICE OVERRIDE fields on the vehicle
+     * form, so a manager can maintain a car without being able to reprice it.
      */
     case FleetManage = 'fleet.manage';
+
+    /**
+     * Create and edit individual vehicles — the physical fleet.
+     *
+     * NOT IN SPEC §12. Added with the operator's agreement, 2026-08-13. The
+     * eighth documented departure, and the one `fleet.manage` predicted.
+     *
+     * Held from Branch Manager upwards, where `fleet.manage` is Super Admin
+     * only, because the two answer different questions. A vehicle is LOCAL: it
+     * sits at one branch, and the manager there is the person who knows it has
+     * gone in for repair, changed registration or come back with a new gearbox.
+     * Making them raise a ticket to Head Office to mark a car off the road is
+     * exactly the friction that ends with the fleet list being wrong.
+     *
+     * WHAT THIS DELIBERATELY DOES NOT INCLUDE
+     *
+     * `vehicles.daily_rate` and `vehicles.security_deposit_amount` are nullable
+     * overrides of the class figures, and setting one changes what a customer
+     * is charged. That is the same power `fleet.manage` was withheld from Branch
+     * Manager to protect, and it would be undone if editing a vehicle handed it
+     * back through a side door. So `VehicleForm` disables both fields for anyone
+     * without `fleet.manage`: they can see that a vehicle is priced separately,
+     * and they cannot change or clear the figure.
+     */
+    case FleetManageVehicles = 'fleet.manage-vehicles';
 
     /**
      * The permission required to confirm a payment made by this method.
@@ -199,6 +228,7 @@ enum StaffPermission: string
             self::PaymentMethodsManage => 'Enable or disable payment methods',
             self::SettingsManage => 'Change platform settings',
             self::FleetManage => 'Manage vehicle classes and their pricing',
+            self::FleetManageVehicles => 'Add and edit individual vehicles',
         };
     }
 
@@ -230,7 +260,8 @@ enum StaffPermission: string
 
             self::PaymentMethodsManage,
             self::SettingsManage,
-            self::FleetManage => 'administration',
+            self::FleetManage,
+            self::FleetManageVehicles => 'administration',
         };
     }
 
