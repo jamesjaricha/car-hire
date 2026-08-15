@@ -100,6 +100,37 @@ final class PricingService implements PricingServiceContract
     }
 
     /**
+     * The lowest daily rate any of these vehicles actually charges.
+     *
+     * Lives here rather than in the two controllers that need it, for the same
+     * reason everything else in this class does: the class → vehicle override
+     * chain is one rule, and two implementations of it agree exactly until one
+     * of them is edited.
+     *
+     * The class is set onto each vehicle before pricing so `classOf()` finds it
+     * already loaded — otherwise this issues a query per car, and a browse page
+     * over a large class would fan out badly.
+     *
+     * @param  iterable<Vehicle>  $vehicles
+     */
+    public function lowestDailyRate(VehicleClass $class, iterable $vehicles): ?string
+    {
+        $lowest = null;
+
+        foreach ($vehicles as $vehicle) {
+            $vehicle->setRelation('vehicleClass', $class);
+
+            $rate = $this->dailyRateFor($vehicle);
+
+            if ($lowest === null || Money::compare($rate, $lowest) < 0) {
+                $lowest = $rate;
+            }
+        }
+
+        return $lowest;
+    }
+
+    /**
      * The vehicle's class, resolved once per model instance.
      *
      * Building a single quote asks for the rate, the deposit, the excess, the

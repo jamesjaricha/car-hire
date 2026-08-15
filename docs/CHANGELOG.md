@@ -199,9 +199,215 @@ more cars would have fixed nothing. It was not — all three classes were priced
   withholding behaviour is correct and stays untouched; what the test prevents
   is a seventh demo class being added without its figures and quietly shrinking
   the shop window.
-- **`take(4)` and the four-column grid are unchanged.** Six classes into
-  `take(4)` fills exactly one row. Showing all six would leave a ragged second
-  row of two.
+- ~~**`take(4)` and the four-column grid are unchanged.**~~ **Superseded the
+  same day.** The reasoning was that six classes into `take(4)` fills exactly
+  one row, and showing all six would leave a ragged 4 + 2. Both halves were
+  true and the conclusion was still wrong: capping the section made an
+  eighteen-vehicle fleet look like a four-car one, which defeats the point of a
+  section whose job is to show somebody the operator has what they want. The
+  cap is gone and the grid is three columns, so six classes land as two full
+  rows. Recorded rather than quietly edited, because the mistake was optimising
+  a row's tidiness over what the page is for.
+
+### The empty state, reviewed against the UI/UX guidelines · same day
+
+Reviewed with `/ui-ux-pro-max`, which named two failures rather than matters of
+taste, plus one the guideline made clear only once read carefully.
+
+- **"Gray-on-gray" is an explicit anti-pattern**, and `ink-400` (`#94a3b8`) on
+  an `ink-100`→`ink-200` panel computes to roughly **2.3:1**. The text was
+  `text-2xl font-bold`, so it qualified for the relaxed 3:1 large-text floor and
+  still failed it. Contrast is a priority-1 CRITICAL rule, not a preference.
+- **One condition was rendering three different ways.** `vehicle-card` and
+  `vehicle.blade.php` drew an illustrated silhouette; `home.blade.php` drew grey
+  make-and-model text. "Use the same style across all pages" is the guideline's
+  own wording, and the page being demonstrated had the worst of the three.
+- **The mechanism behind "dead cards".** The grey panel printed make and model —
+  which the card body prints again 40px below. Repeated text in an image slot is
+  exactly what a broken `<img>` looks like, so a deliberate design choice read as
+  a failure. Removing the duplication is most of the fix.
+- **"Empty states need a message and an action" needed reading, not applying.**
+  A customer cannot upload a photograph, so a prompt on their card is noise. The
+  actionable empty state belongs where somebody can act: the panel now carries a
+  **Photos** column and an **Awaiting a photograph** filter on Vehicle classes,
+  following the existing Sellable-badge precedent.
+
+### Decisions
+
+- **The photo badge is `warning`, never `danger`.** A class without a photograph
+  still sells; a class without a §15 figure does not. Giving both the same colour
+  would flatten "this cannot be booked" into "this could look nicer", and the
+  Sellable column needs that red to keep meaning something.
+- **`withoutImages()` matches `[]` as well as `NULL`.** An emptied Filament
+  upload writes an empty array, not null. A scope testing only for null would
+  report an emptied gallery as photographed, and the column and the filter would
+  then disagree about the same row. Tested from both sides.
+- **The glyph is at full `brand-600` rather than tinted down.** At 70% opacity it
+  blended to about 2.5:1 against the panel; full strength measures roughly
+  3.6–3.8:1. The silhouette is `aria-hidden` and decorative, so WCAG does not
+  strictly require 3:1 — but clearing it is what makes it visible, which is the
+  entire point of the change.
+- **Three copies were aligned, not unified.** Extracting an `x-vehicle-image`
+  component is the correct fix and is recorded in OPEN-ITEMS: the per-vehicle
+  photograph work will touch all three call sites anyway, and that is the moment
+  to do it once rather than twice.
+
+⚠ **The contrast figures above are computed from the hex tokens, not measured in
+a rendered page.** Estimating contrast has been got wrong on this codebase
+before. They are close enough to act on and worth confirming with a canvas
+sample if any of these colours change.
+
+### The fleet cards actually go somewhere now · same day
+
+They were plain `<div>`s that lifted on hover and led nowhere, while
+`HomeController`'s docblock asserted they "link into a search rather than a
+booking". The intent had been written down and never implemented, so the hover
+lift was promising an interaction that did not exist.
+
+Each card is now an `<a>` to that class's vehicle page, carrying the branch and
+both dates — the vehicle page validates all three and 404s if the branch is not
+where the vehicle actually is, so a card missing any of them would land on an
+error.
+
+- **The default dates moved into `HomeController`.** `x-search-form` computes
+  its own when nothing is passed, which is right everywhere else. On this page
+  it would have meant the form and the cards naming different days: a customer
+  clicks a card showing the dates in front of them and arrives at a quote for
+  different ones, at a different price, with neither page admitting the switch.
+  Computed once, passed to both, and there is a test comparing the form's
+  prefilled values against the card links' query strings.
+- **A visible "See prices and dates" affordance**, not just the hover lift.
+  Hover does not exist on a touch screen, so a card whose only clue is a lift
+  reads as static to every phone visitor — and phones are most of them.
+- The whole card is one link rather than a nested button: nothing else in it is
+  interactive, and one large target beats a small one a thumb has to aim for.
+
+Three tests in `SearchPageTest`, the important one being the date agreement —
+that is the failure that would ship silently, because both pages would look
+entirely correct in isolation.
+
+### The home page shows classes, not one car standing in for each · same day
+
+The cards were vehicles, one per class, so a single Corolla represented the
+whole Economy range — an operator with four cars looked like one with one. And
+*which* Corolla was never a decision anybody made: `unique('vehicle_class_id')`
+kept whichever row the database happened to return first.
+
+The operator's words for it were the right diagnosis: **it limits the client on
+options.**
+
+### Added
+
+- **`/classes/{slug}`** and `VehicleClassController` — a class and every car in
+  it, with photographs, specifications, the deposit, the excess and a search
+  form for real dates.
+- Home page cards are now classes: name, description, the number of bookable
+  vehicles, and a from-price.
+- `PricingService::lowestDailyRate()`.
+
+### Decisions
+
+- **The class page quotes nothing, deliberately.** It has no dates, and without
+  dates there is no hire to price. Spec §1.2 requires the all-in price to be
+  identical from search to checkout, and `SearchController` already refuses to
+  show a cheaper "from" total for that reason. So this page names a **daily
+  rate**, labelled as one, and never a total. There is no Reserve button either:
+  booking runs through search, where real days produce real prices, and a test
+  asserts the absence of both.
+
+- **The from-price is taken across the vehicles, not read off the class.** A
+  vehicle override can be higher *or* lower than its class figure, so
+  `vehicle_classes.daily_rate` can be a rate no actual car charges. There is a
+  test where every car is overridden dearer than its class and the page must
+  advertise the cheapest car rather than the class figure.
+
+- **`lowestDailyRate()` went on `PricingService`**, not into the two controllers
+  that needed it. The class → vehicle override chain is one rule, and two
+  implementations agree exactly until one is edited — which is the whole reason
+  that service exists.
+
+- **The page lists every bookable car, not the available ones.** Filtering by
+  availability needs dates, and dates the customer never chose would hide cars
+  that are free on the days they actually want — showing fewer options than the
+  operator has, which is the fault this page was built to fix. It says plainly
+  that availability depends on dates.
+
+- **A class with nothing bookable in it is dropped from the home page.** It is
+  sellable on paper with nothing behind it, so a card would lead to an empty
+  page. The vehicle count excludes cars off the road for the same reason.
+
+- **Unpriced and retired classes 404.** `AvailabilityService` already withholds
+  them from search; this page bypasses search entirely, so it enforces the rule
+  itself rather than inheriting it.
+
+⚠ **The route resolves by `slug`, which is unique per operator and not
+globally.** Correct while the platform serves one operator, and ambiguous the
+moment it does not — recorded in OPEN-ITEMS. Multi-operator needs an operator
+context on every public route anyway, and that is the moment to resolve it.
+
+---
+
+## Phase 4 — Vehicles · 2026-08-13
+
+Unparks one of the back-office screens deferred before the demo. It came back
+because the fleet cards say "Toyota Corolla" and there was nowhere in the panel
+to change it: `vehicle_classes` had a screen and `vehicles` did not, so the
+class half of every card was manageable and the vehicle half was not.
+
+### Added
+
+- **`VehicleResource`** — the second resource in this panel with real forms.
+  Registration, make, model, year, colour, seats, transmission, fuel, class,
+  branch and status. `VehiclePolicy` refuses deletion; `status` is the off
+  switch, and `restrictOnDelete` from `vehicle_holds` and `bookings` is why.
+- **`fleet.manage-vehicles`** — the **eighth** documented §12 departure, and the
+  one `fleet.manage`'s own docblock predicted when it said "when vehicle-level
+  CRUD arrives it can take a narrower permission of its own".
+- Navigation badge counting vehicles in maintenance, an "Off the road" tab, and
+  filters by status, branch and class.
+- Transmission and fuel are `Select`s over a fixed list rather than free text.
+  The customer card runs `ucfirst()` over whatever is stored, so a free-text
+  field puts typos on the shop window.
+
+### Decisions
+
+- **Branch Manager holds it, where `fleet.manage` is Super Admin.** A class is a
+  price list applying to every branch that holds one. A vehicle is a car in a
+  yard, and the manager of the branch it sits at is who knows it has gone in for
+  repair — making them raise a ticket to record that is how a fleet list stops
+  being true.
+
+- **The price overrides are disabled without `fleet.manage`, and not
+  dehydrated.** This is the load-bearing decision. `vehicles.daily_rate` and
+  `security_deposit_amount` are nullable overrides, so letting a manager edit a
+  vehicle would have handed back through a side door exactly the pricing power
+  `fleet.manage` was withheld to protect. Disabled alone was not enough to rely
+  on: if the fields ever dehydrated, a manager pressing Save on an unrelated
+  change would write null over a Super Admin's figure — a price change made by
+  somebody not allowed to make one, with nothing on screen showing it. So
+  `dehydrated()` is set explicitly rather than left to Filament's default, and a
+  test asserts a manager's save leaves both figures exactly as they were.
+
+- **Empty means inherit, and must reach the database as a real null.** The same
+  failure shape as the §15 class fields, reached differently: Filament returns an
+  empty string for a cleared numeric input, and an empty string through the
+  `decimal:2` cast is `0.00`. `PricingService` reads any non-null override
+  without sanity-checking it against the class, so a zero there is a free hire.
+  `inheritableMoney()` normalises it, mirroring `undecidableMoney()` on the class
+  form — but the two are **not** the same idea and are deliberately named apart:
+  a null class figure means "nobody has decided", a null vehicle figure means
+  "inherit", which is the normal case for almost every car.
+
+- **The Rate column says "Class rate" rather than repeating the class figure.**
+  Echoing the inherited number would read as a decision made on this screen, and
+  an override is the exception worth spotting.
+
+### ⚠ Deployment note
+
+A new permission row. **`RolesAndPermissionsSeeder` must be re-run** on any
+existing database, or `hasPermissionTo()` throws `PermissionDoesNotExist` rather
+than returning false — deliberate, because a missing row is a deployment fault
+and a silent denial gets sent to the wrong person to fix.
 
 ---
 

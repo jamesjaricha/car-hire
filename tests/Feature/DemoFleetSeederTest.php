@@ -100,12 +100,16 @@ final class DemoFleetSeederTest extends TestCase
     }
 
     /**
-     * The home page shows one vehicle per class and its grid is four columns
-     * wide, so a fleet of three classes rendered as three cards and a gap —
-     * which is what prompted this seeder being widened. Four is the minimum
-     * that fills the row.
+     * The home page shows one vehicle per class, uncapped, in a three-column
+     * grid. Six classes land as two full rows; a count that is not a multiple
+     * of three leaves a ragged last row, which is what the section looked like
+     * when three classes met a four-column grid.
+     *
+     * Asserted as a multiple of three rather than as exactly six, so adding a
+     * seventh class fails here — the reminder being that the grid needs a
+     * decision, not that seven classes are wrong.
      */
-    public function test_the_fleet_can_fill_the_home_page_grid(): void
+    public function test_the_fleet_fills_whole_rows_of_the_home_page_grid(): void
     {
         $this->seed(DemoFleetSeeder::class);
 
@@ -116,7 +120,12 @@ final class DemoFleetSeederTest extends TestCase
             ->get()
             ->unique('vehicle_class_id');
 
-        $this->assertGreaterThanOrEqual(4, $featured->count());
+        $this->assertGreaterThanOrEqual(6, $featured->count());
+        $this->assertSame(
+            0,
+            $featured->count() % 3,
+            "The home page grid is three columns; {$featured->count()} classes leaves a ragged last row.",
+        );
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\BasketController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\VehicleClassController;
 use App\Http\Controllers\VehicleController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +24,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
 Route::get('/search', SearchController::class)->name('search');
+
+// Browsing a class. Deliberately dateless and therefore quotes nothing — see
+// the controller. Registered before the vehicle route only for readability;
+// the two prefixes cannot collide.
+Route::get('/classes/{slug}', VehicleClassController::class)->name('classes.show');
+
 Route::get('/vehicles/{vehicle}', VehicleController::class)->name('vehicles.show');
 
 // Reserving. Still claims nothing — only BookingCreationService takes a hold.

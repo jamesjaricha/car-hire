@@ -122,7 +122,12 @@ carhire/
 │   │   ├── CheckoutController.php        ★   Spec §1.3, and §1.4 — read the
 │   │   │                                     header: it must not reveal that
 │   │   │                                     an email already exists.
-│   │   ├── HomeController.php                pricing is QuoteService,
+│   │   ├── HomeController.php                Cards are CLASSES, not one car
+│   │   │                                     standing in for each. Read the
+│   │   │                                     comment before reverting that.
+│   │   ├── VehicleClassController.php    ★   Browse one class. QUOTES NOTHING —
+│   │   │                                     no dates, so no hire, so no total.
+│   │   │                                     A daily rate only, §1.2.
 │   │   ├── SearchController.php          ★   availability is
 │   │   │                                     AvailabilityService. Read its
 │   │   │                                     header for the timezone edge —
@@ -180,7 +185,27 @@ carhire/
 │   │       │   │                             undecided, and requiring a number
 │   │       │   │                             would invent one.
 │   │       │   └── Tables/VehicleClassesTable.php
-│   │       │                                 "Sellable" is not decoration.
+│   │       │                                 "Sellable" is not decoration. The
+│   │       │                                 Photos column is `warning` and
+│   │       │                                 never `danger` — no photograph
+│   │       │                                 still sells, a missing §15 figure
+│   │       │                                 does not.
+│   │       │
+│   │       ├── Vehicles/                     REAL FORMS. The physical fleet.
+│   │       │   │                             `fleet.manage-vehicles`, Branch
+│   │       │   │                             Manager and above — a car is local
+│   │       │   │                             where a class price list is not.
+│   │       │   ├── VehicleResource.php       Badge counts cars off the road.
+│   │       │   ├── Pages/                    index, create, edit. No delete.
+│   │       │   ├── Schemas/VehicleForm.php ★
+│   │       │   │                             READ THIS BEFORE EDITING. The two
+│   │       │   │                             money fields are nullable
+│   │       │   │                             OVERRIDES — empty means inherit,
+│   │       │   │                             never zero — and they are disabled
+│   │       │   │                             AND undehydrated without
+│   │       │   │                             `fleet.manage`, so a manager's
+│   │       │   │                             save cannot clear a price.
+│   │       │   └── Tables/VehiclesTable.php  "Class rate" ≠ a decision made here.
 │   │       │
 │   │       └── Refunds/                  ★   READ-ONLY, and for stronger reasons
 │   │           │                             than bookings: the amount is locked,
@@ -203,6 +228,10 @@ carhire/
 │   │   │                                     This is what makes read-only real.
 │   │   ├── RefundPolicy.php              ★   Same, and higher stakes: a form here
 │   │   │                                     could defeat the two-person rule.
+│   │   ├── VehiclePolicy.php             ★   Real CRUD, narrower permission
+│   │   │                                     than the class policy. Read the
+│   │   │                                     docblock for why "may edit a
+│   │   │                                     vehicle" is not "may price one".
 │   │   └── VehicleClassPolicy.php            The exception: real CRUD, because
 │   │                                         no service owns these writes.
 │   │                                         Delete still refused — classes are

@@ -247,6 +247,59 @@ should find the reasoning rather than rediscover the discrepancy.
 is treated as a deployment fault, deliberately, because a silent denial gets
 diagnosed as a role misconfiguration and sent to the wrong person.
 
+**Eight §12 departures as of 2026-08-13.** `fleet.manage-vehicles` is the
+newest, added when the panel first got a screen for individual vehicles. It sits
+at **Branch Manager and above**, deliberately wider than `fleet.manage`, which
+stays Super Admin.
+
+The two are not the same power and the gap is the design. A vehicle class is a
+price list applying to every branch that holds one; a vehicle is a car in a
+yard, and the manager of the branch it sits at is the person who knows it has
+gone in for repair. Routing that through Head Office is how a fleet list goes
+stale.
+
+The seam that needed care: `vehicles.daily_rate` and
+`vehicles.security_deposit_amount` are nullable overrides, so "may edit a
+vehicle" would have handed back the pricing power `fleet.manage` was withheld to
+protect. `VehicleForm` disables both fields without `fleet.manage` and does not
+dehydrate them, so a manager's save cannot change *or clear* an override. There
+is a test asserting a manager's save leaves both figures untouched.
+
+⚠ **This is a new permission row.** Any database seeded before 2026-08-13 needs
+`RolesAndPermissionsSeeder` re-run, or `hasPermissionTo()` throws
+`PermissionDoesNotExist` rather than returning false. Deliberate — a missing
+permission row is a deployment fault, and a silent denial gets diagnosed as a
+role misconfiguration and sent to the wrong person.
+
+**The class page resolves by a slug that is only unique per operator.**
+`/classes/{slug}` looks up `vehicle_classes.slug`, but the unique index is on
+`(operator_id, slug)` — so two operators may both have `economy`, and the lookup
+becomes ambiguous the moment a second one exists. It is correct today because
+the platform serves one operator, and it is written down here rather than left
+to be discovered.
+
+Not worth fixing in isolation: opening the platform to other operators needs an
+operator context on **every** public route — a domain, a subdomain or a path
+segment — and this lookup is one of the things that resolves at that point.
+Binding by id instead would avoid the ambiguity at the cost of a worse
+customer-facing URL, and would still not answer which operator's site a visitor
+is on.
+
+**The vehicle-image fallback is written out three times.** `home.blade.php`,
+`components/vehicle-card.blade.php` and `vehicle.blade.php` each contain their
+own copy of "photograph if there is one, illustrated panel if not". They drifted
+once already — the home page was rendering grey make-and-model text while the
+other two drew the silhouette, and the home page was the one being demonstrated.
+They were brought back into line on 2026-08-13 rather than unified, which fixes
+the symptom and leaves the cause.
+
+Extracting an `x-vehicle-image` component is the real fix. It is deferred rather
+than forgotten because the per-vehicle photograph work will touch all three
+call sites anyway — the fallback chain becomes vehicle, then class, then
+silhouette — and that is the natural moment to do it once. A test asserts the
+brand-tinted panel is present and the old grey one is not, so a fourth copy
+appearing in the old style is caught.
+
 **KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
 KYC verified, balance settled and security deposit recorded. The latter two are
 enforced now; the first has nowhere to be read from until the admin panel

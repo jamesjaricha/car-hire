@@ -54,6 +54,76 @@ final class SearchPageTest extends TestCase
     }
 
     /**
+     * The fleet cards represent a CLASS, not one car standing in for it.
+     *
+     * They used to link to a single vehicle chosen by whichever row came back
+     * first, so one Corolla spoke for the whole Economy range — the operator's
+     * four cars looked like one, and nobody had decided which car that was.
+     */
+    public function test_the_fleet_cards_link_to_the_class_page(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+        $class = $vehicle->vehicleClass;
+
+        $response = $this->get(route('home'));
+
+        $response->assertSuccessful()
+            ->assertSee($class->name)
+            // The class, not a car standing in for it.
+            ->assertSee(route('classes.show', ['slug' => $class->slug]), escape: false)
+            ->assertDontSee($vehicle->make.' '.$vehicle->model);
+    }
+
+    /**
+     * The card states the size of the range, which is the whole point of
+     * showing a class rather than a representative car.
+     */
+    public function test_the_card_counts_the_bookable_vehicles_in_the_class(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+
+        // A second car in the same class, and a third that is off the road.
+        Vehicle::factory()->create([
+            'operator_id' => $branch->operator_id,
+            'vehicle_class_id' => $vehicle->vehicle_class_id,
+            'branch_id' => $branch->getKey(),
+        ]);
+        Vehicle::factory()->inMaintenance()->create([
+            'operator_id' => $branch->operator_id,
+            'vehicle_class_id' => $vehicle->vehicle_class_id,
+            'branch_id' => $branch->getKey(),
+        ]);
+
+        $entry = $this->get(route('home'))->viewData('classes')->firstOrFail();
+
+        // Two, not three. A car off the road is not an option a customer has.
+        $this->assertSame(2, $entry['vehicleCount']);
+    }
+
+    /**
+     * A class with nothing bookable in it is dropped rather than shown as an
+     * empty card leading to an empty page.
+     */
+    public function test_a_class_with_no_bookable_vehicle_is_not_shown(): void
+    {
+        $branch = Branch::factory()->create();
+        $class = VehicleClass::factory()->create([
+            'operator_id' => $branch->operator_id,
+            'name' => 'Ghost Fleet',
+        ]);
+
+        Vehicle::factory()->inMaintenance()->create([
+            'operator_id' => $branch->operator_id,
+            'vehicle_class_id' => $class->getKey(),
+            'branch_id' => $branch->getKey(),
+        ]);
+
+        $this->get(route('home'))
+            ->assertSuccessful()
+            ->assertDontSee('Ghost Fleet');
+    }
+
+    /**
      * Spec §1.1. No session, no account, no contact details — just a price.
      */
     public function test_a_guest_can_search_and_see_a_priced_vehicle(): void
@@ -264,6 +334,28 @@ final class SearchPageTest extends TestCase
 
         $this->assertSame('2026-09-20T07:00:00+00:00', $range->start->toIso8601String());
         $this->assertSame('2026-09-23T07:00:00+00:00', $range->end->toIso8601String());
+    }
+
+    /**
+     * The empty state must be an illustration, not the class name repeated.
+     *
+     * REGRESSION. The home page rendered grey make-and-model text on a grey
+     * panel — duplicating what the card body prints directly below it, at
+     * roughly 2.3:1 contrast. Repeated text in an image slot is what a broken
+     * <img> looks like, so a deliberate choice read as a fault. All three
+     * places that render this condition now render it identically.
+     */
+    public function test_a_class_without_a_photograph_renders_an_illustration(): void
+    {
+        [$branch, $vehicle] = $this->fleet();
+
+        $response = $this->get($this->searchUrl($branch));
+
+        $response->assertSuccessful();
+
+        // The illustrated panel, not the dead grey one.
+        $this->assertStringContainsString('from-brand-50 to-brand-100', $response->getContent());
+        $this->assertStringNotContainsString('from-ink-100 to-ink-200', $response->getContent());
     }
 
     // --- Fixtures -----------------------------------------------------------

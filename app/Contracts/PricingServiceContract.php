@@ -7,6 +7,7 @@ namespace App\Contracts;
 use App\DataTransferObjects\DateRange;
 use App\Enums\InsurancePriceMode;
 use App\Models\Vehicle;
+use App\Models\VehicleClass;
 
 /**
  * Resolves what a vehicle costs, honouring the class → vehicle override chain.
@@ -44,4 +45,25 @@ interface PricingServiceContract
      * depending on the vehicle class.
      */
     public function insuranceTotal(Vehicle $vehicle, DateRange $range): string;
+
+    /**
+     * The lowest daily rate any of these vehicles actually charges.
+     *
+     * For browse pages that have no dates and therefore cannot quote a hire.
+     * This is a DAILY RATE and must never be presented as a total — spec §1.2
+     * governs the all-in price, and the only place that is computed is
+     * `QuoteService` with a real `DateRange`.
+     *
+     * Taken across the vehicles rather than read off `vehicle_classes.daily_rate`
+     * because a vehicle-level override may be higher or lower than its class.
+     * Using the class figure would advertise a rate no actual car charges, which
+     * is precisely the drift §1.2 exists to prevent.
+     *
+     * Null when the collection is empty: a class with nothing bookable in it has
+     * no rate to advertise, and printing the class figure anyway would price
+     * something nobody can hire.
+     *
+     * @param  iterable<Vehicle>  $vehicles
+     */
+    public function lowestDailyRate(VehicleClass $class, iterable $vehicles): ?string;
 }
