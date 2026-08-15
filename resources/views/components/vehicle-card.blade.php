@@ -44,8 +44,12 @@
                  width="640" height="400"
                  class="size-full object-cover">
         @else
-            <div class="flex size-full items-center justify-center bg-gradient-to-br from-ink-100 to-ink-200">
-                <svg aria-hidden="true" class="w-2/5 text-ink-400" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            {{-- Brand tint rather than ink grey, and the glyph at full strength.
+                 `ink-400` on an `ink-100`→`ink-200` panel measured about 2.3:1,
+                 which is invisible enough to read as a missing asset. Same
+                 treatment as home.blade.php and vehicle.blade.php. --}}
+            <div class="flex size-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100">
+                <svg aria-hidden="true" class="w-2/5 text-brand-600" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M6 24h52M10 24V15l5-8h22l7 8h6a4 4 0 0 1 4 4v5M14 15h32"/>
                     <circle cx="18" cy="24" r="4"/><circle cx="46" cy="24" r="4"/>
                 </svg>

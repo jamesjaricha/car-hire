@@ -47,8 +47,12 @@
                              width="960" height="600"
                              class="aspect-[16/10] w-full object-cover">
                     @else
-                        <div class="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-br from-ink-100 to-ink-200">
-                            <svg aria-hidden="true" class="w-1/3 text-ink-400" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        {{-- Same empty state as home.blade.php and
+                             x-vehicle-card. Three copies of this markup is two
+                             too many — extracting an x-vehicle-image component
+                             is the real fix and is noted in OPEN-ITEMS. --}}
+                        <div class="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100">
+                            <svg aria-hidden="true" class="w-1/3 text-brand-600" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M6 24h52M10 24V15l5-8h22l7 8h6a4 4 0 0 1 4 4v5M14 15h32"/>
                                 <circle cx="18" cy="24" r="4"/><circle cx="46" cy="24" r="4"/>
                             </svg>

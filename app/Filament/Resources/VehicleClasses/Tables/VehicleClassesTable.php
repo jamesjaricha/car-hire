@@ -8,8 +8,10 @@ use App\Models\VehicleClass;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 
 /**
  * The fleet's pricing, with the incomplete classes impossible to miss.
@@ -64,6 +66,23 @@ final class VehicleClassesTable
                     ->label('Offered')
                     ->boolean(),
 
+                // Deliberately NOT styled as a fault. A class without a
+                // photograph still sells — the customer-facing card renders an
+                // illustrated panel instead. It is a presentation gap, so it
+                // reads as "worth doing" rather than borrowing the danger
+                // colour the Sellable column needs for something that actually
+                // stops a booking.
+                TextColumn::make('image_paths')
+                    ->label('Photos')
+                    ->badge()
+                    ->state(fn (VehicleClass $record): string => $record->hasImages()
+                        ? (string) count($record->imagePaths())
+                        : 'None')
+                    ->color(fn (VehicleClass $record): string => $record->hasImages() ? 'success' : 'warning')
+                    ->tooltip(fn (VehicleClass $record): ?string => $record->hasImages()
+                        ? null
+                        : 'Sells normally, but the card shows an illustration rather than this vehicle.'),
+
                 // Not decoration. False here means every vehicle in this class
                 // is invisible to customers.
                 TextColumn::make('id')
@@ -79,6 +98,11 @@ final class VehicleClassesTable
             ])
             ->filters([
                 TernaryFilter::make('is_active')->label('Offered for hire'),
+
+                // The working queue for whoever is photographing the fleet.
+                Filter::make('without_images')
+                    ->label('Awaiting a photograph')
+                    ->query(fn (EloquentBuilder $query): EloquentBuilder => $query->withoutImages()),
             ])
             ->recordActions([
                 EditAction::make(),

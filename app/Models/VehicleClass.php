@@ -194,4 +194,27 @@ final class VehicleClass extends Model
             }
         });
     }
+
+    /**
+     * Classes with no photograph.
+     *
+     * Unlike a missing pricing decision this blocks nothing — the customer-facing
+     * design renders an illustrated panel instead and the class still sells. It
+     * is a presentation gap, so it belongs in a column the fleet manager can
+     * scan rather than in a warning that implies something is broken.
+     *
+     * `image_paths` is a JSON column, and an emptied Filament upload leaves `[]`
+     * rather than null. Both mean "no photograph", so both are matched — testing
+     * only for null would report an emptied gallery as populated.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeWithoutImages(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->whereNull('image_paths')
+                ->orWhereJsonLength('image_paths', 0);
+        });
+    }
 }

@@ -169,6 +169,39 @@ final class VehicleClassResourceTest extends TestCase
         $this->assertTrue($class->refresh()->isFullyPriced());
     }
 
+    // --- The photograph queue -----------------------------------------------
+
+    /**
+     * A class with no photograph still sells — the customer card renders an
+     * illustration — so this is a presentation gap rather than a fault. The
+     * filter is the working queue for whoever is photographing the fleet.
+     *
+     * `image_paths` is JSON, and an emptied Filament upload writes `[]` rather
+     * than null. Both mean "no photograph"; a scope testing only for null would
+     * report an emptied gallery as populated, which is why both are seeded here.
+     */
+    public function test_the_without_images_scope_matches_null_and_empty_array(): void
+    {
+        $never = VehicleClass::factory()->create(['image_paths' => null]);
+        $emptied = VehicleClass::factory()->create(['image_paths' => []]);
+        $photographed = VehicleClass::factory()->create(['image_paths' => ['vehicle-classes/one.jpg']]);
+
+        $matched = VehicleClass::query()->withoutImages()->pluck('id')->all();
+
+        $this->assertContains($never->getKey(), $matched);
+        $this->assertContains($emptied->getKey(), $matched);
+        $this->assertNotContains($photographed->getKey(), $matched);
+    }
+
+    public function test_has_images_agrees_with_the_scope(): void
+    {
+        $emptied = VehicleClass::factory()->create(['image_paths' => []]);
+
+        // The column and the filter must not disagree about the same row.
+        $this->assertFalse($emptied->hasImages());
+        $this->assertSame(0, count($emptied->imagePaths()));
+    }
+
     private function admin(): User
     {
         return User::factory()->withRole(StaffRole::SuperAdmin)->create();
