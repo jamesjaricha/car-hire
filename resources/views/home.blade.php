@@ -84,38 +84,20 @@
                 <a href="{{ route('classes.show', ['slug' => $class->slug]) }}"
                    class="rise liftable group flex flex-col overflow-hidden rounded-3xl border border-ink-200 bg-white shadow-sm [transition:transform_200ms_var(--ease-out-strong),box-shadow_200ms_var(--ease-out-strong),border-color_200ms_ease] hover:border-brand-200 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
                     <div class="aspect-[4/3] bg-ink-100 relative overflow-hidden">
-                        @if ($classImage)
-                            {{-- The photograph the operator uploaded against this
-                                 class, in the admin panel. --}}
-                            <img src="{{ Storage::disk('public')->url($classImage) }}"
-                                 alt="{{ $class->name }}"
-                                 loading="lazy" width="480" height="360"
-                                 class="absolute inset-0 size-full object-cover [transition:transform_300ms_var(--ease-out-strong)] group-hover:scale-105">
-                        @else
-                            {{-- No photograph uploaded yet.
-
-                                 This was grey make-and-model text on a grey
-                                 panel, which failed two ways at once. It
-                                 repeated what the card body prints 40px below
-                                 it, and repeated text in an image slot is
-                                 precisely what a broken <img> looks like — so
-                                 a deliberate design choice read as a fault.
-                                 The colours were also gray-on-gray at roughly
-                                 2.3:1, under the 3:1 large-text floor.
-
-                                 An illustration instead, matching
-                                 x-vehicle-card and vehicle.blade.php so one
-                                 condition has exactly one treatment across the
-                                 site. Deliberately a drawing and not a stock
-                                 photograph: nobody should mistake it for the
-                                 vehicle they are hiring. --}}
-                            <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100">
-                                <svg aria-hidden="true" class="w-2/5 text-brand-600 [transition:transform_300ms_var(--ease-out-strong)] group-hover:scale-105" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M6 24h52M10 24V15l5-8h22l7 8h6a4 4 0 0 1 4 4v5M14 15h32"/>
-                                    <circle cx="18" cy="24" r="4"/><circle cx="46" cy="24" r="4"/>
-                                </svg>
-                            </div>
-                        @endif
+                        {{-- The CLASS photograph, deliberately, even though
+                             vehicles now carry their own. These cards are
+                             ranges rather than cars — one card stands for six
+                             Corollas — so a specific registration's photograph
+                             would be exactly the misrepresentation per-vehicle
+                             photographs were added to remove. The individual
+                             cars appear, each with its own picture, on the
+                             class page and in search results. --}}
+                        <x-vehicle-image :path="$classImage"
+                                         :alt="$class->name"
+                                         width="480" height="360"
+                                         imgClass="absolute inset-0 size-full object-cover [transition:transform_300ms_var(--ease-out-strong)] group-hover:scale-105"
+                                         panelClass="absolute inset-0"
+                                         glyphClass="w-2/5 [transition:transform_300ms_var(--ease-out-strong)] group-hover:scale-105" />
                     </div>
                     <div class="flex flex-1 flex-col justify-between p-6">
                         <div>

@@ -15,6 +15,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -203,6 +204,73 @@ final class VehicleResourceTest extends TestCase
         $this->assertSame('green', $vehicle->colour);
         $this->assertSame('3200.00', $vehicle->daily_rate);
         $this->assertSame('9000.00', $vehicle->security_deposit_amount);
+    }
+
+    // --- Photographs --------------------------------------------------------
+
+    /**
+     * Photographs must survive an unrelated save by the person most likely to
+     * make one.
+     *
+     * The same failure shape as the two price overrides, reached differently: a
+     * multi-file upload whose state is not carried through the form would
+     * dehydrate as empty, and a Branch Manager changing a colour would silently
+     * delete the fleet photographer's work. Nothing on screen would say so, and
+     * the site would quietly fall back to class pictures — which looks fine,
+     * which is exactly why it needs a test rather than an eye.
+     *
+     * ⚠ THE FAKED DISK IS LOAD-BEARING, NOT TIDINESS. `BaseFileUpload::
+     * hydrateFiles()` filters the stored state through `$disk->exists($file)`,
+     * so a path pointing at no actual file is dropped on hydration and then
+     * dehydrated as empty. Writing bare strings into `image_paths` therefore
+     * fails this test while the code is entirely correct — which is how it
+     * failed the first time it was written. Real files, or this proves nothing.
+     *
+     * Worth knowing for production too: it means a vehicle whose photographs
+     * have vanished from disk loses its paths the next time anybody saves it.
+     * That is Filament's behaviour and it is defensible — a path to a missing
+     * file is useless — but it would also be the symptom if `storage:link` were
+     * ever broken on the server.
+     */
+    public function test_a_managers_unrelated_save_does_not_wipe_the_photographs(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('vehicles/abc-1234-front.jpg', 'not really a jpeg');
+        Storage::disk('public')->put('vehicles/abc-1234-interior.jpg', 'not really a jpeg');
+
+        $vehicle = $this->vehicle([
+            'image_paths' => ['vehicles/abc-1234-front.jpg', 'vehicles/abc-1234-interior.jpg'],
+        ]);
+
+        Livewire::actingAs($this->manager())
+            ->test(EditVehicle::class, ['record' => $vehicle->getKey()])
+            ->fillForm(['colour' => 'green'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $vehicle->refresh();
+
+        $this->assertSame('green', $vehicle->colour);
+        $this->assertSame(
+            ['vehicles/abc-1234-front.jpg', 'vehicles/abc-1234-interior.jpg'],
+            $vehicle->ownImagePaths(),
+        );
+    }
+
+    /**
+     * Photographing a car is NOT a pricing power, so it sits under
+     * `fleet.manage-vehicles` rather than `fleet.manage` — the manager of the
+     * branch the car is parked at is the only person who can actually go and
+     * photograph it. No new permission row was added for this, and this test is
+     * what would catch it if one ever were.
+     */
+    public function test_a_branch_manager_may_reach_the_photographs_field(): void
+    {
+        $vehicle = $this->vehicle();
+
+        Livewire::actingAs($this->manager())
+            ->test(EditVehicle::class, ['record' => $vehicle->getKey()])
+            ->assertFormFieldExists('image_paths');
     }
 
     /**

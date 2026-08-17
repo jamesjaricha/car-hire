@@ -5,6 +5,128 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Photographs of the actual car · 2026-08-17
+
+Reverses the Phase 5 decision that photographs belong to a class rather than to
+a vehicle. The reversal came from the operator looking at the live site: he went
+to **Vehicles** to upload pictures, found nothing there, and made the argument
+that settled it — customers with the same class but different colour, trim and
+condition "want to see what they are hiring", and a stand-in photograph "looks
+like a scam website".
+
+He is right, and the original reasoning was answering a different question. It
+weighed the operator's effort (photograph the Corolla once, not four times)
+without weighing what the platform actually sells: search returns individual
+cars, `/vehicles/{id}` quotes one, and `VehicleHoldService::place()` locks that
+exact row. **The customer is hiring a registration, not a category.** With no
+card gateway behind the checkout, the only thing persuading somebody to transfer
+real money to a bank account is trust, so this was never cosmetic.
+
+### Added
+
+- **`vehicles.image_paths`** — nullable JSON, mirroring the class column.
+- **`Vehicle::imagePaths()` / `primaryImagePath()` / `ownImagePaths()` /
+  `hasOwnImages()` / `scopeWithoutImages()`.**
+- **A Photographs section on `VehicleForm`**, and a **Photos** column plus an
+  **"Awaiting its own photograph"** filter on the Vehicles table.
+- **`x-vehicle-image`** — the component OPEN-ITEMS has been asking for.
+- Vehicle photographs on the class page's car cards, which previously had no
+  imagery at all.
+- `VehiclePhotographsTest`, plus two tests on `VehicleResourceTest` and an
+  extension to `DemoFleetSeederTest`.
+
+### Decisions
+
+- **An override, not a replacement, and that is what makes partial adoption
+  safe.** The chain is vehicle, then class, then silhouette. An operator can
+  photograph six cars this week and twelve next month and the site never looks
+  worse in between. The class gallery keeps a job of its own: home page cards
+  are ranges, so that is the shop-window image for a whole class — and a
+  specific registration's photograph there would be the same misrepresentation
+  pointing the other way. There is a test asserting the home page shows the
+  class picture even when a vehicle has its own.
+
+- **Own photographs REPLACE the class gallery rather than joining it.** Merging
+  them would put this car and somebody else's car in one strip with nothing
+  saying which was which — worse than the class-only gallery, because it looks
+  specific.
+
+- **The vehicle page says when the photographs are not of this car.** Falling
+  back is better than an empty frame; falling back *silently*, on the screen
+  carrying the price and the Reserve button, is the exact misrepresentation
+  being fixed. So it names the make, model, year and colour of what is actually
+  being booked. Two tests: the disclaimer appears when inherited, and does not
+  when the car has its own.
+
+- **`fleet.manage-vehicles`, and NO new permission row.** Worth stating plainly
+  because every recent slice has added one: this does not. Photographing a car
+  is not a pricing power, so it needs nothing `fleet.manage` withholds — and the
+  person who can physically go and photograph it is the manager of the branch it
+  is parked at. **No `RolesAndPermissionsSeeder` re-run is required.**
+
+- **The Photos column has three states, not two.** "Class photos" is the case
+  worth finding: it looks finished to anyone scanning the site, and it is
+  precisely what this work exists to remove. The filter asks about the
+  vehicle's own column only, for the same reason — counting a borrowed gallery
+  as done would empty the worklist exactly where the work is.
+
+- **The badge stays `warning`, never `danger`**, matching the class screen. A
+  car without its own photograph still sells, and the Sellable column needs that
+  red to keep meaning "this cannot be booked".
+
+- **Four copies of the empty state became one.** The photo-or-illustration block
+  was pasted into `home.blade.php`, `x-vehicle-card`, `vehicle.blade.php` and
+  had no counterpart in `vehicle-class.blade.php`. It drifted once already —
+  the home page drew grey type where the others drew the silhouette, and the
+  home page was the one being demonstrated. OPEN-ITEMS recorded that realigning
+  them by hand fixed the symptom and left the cause, and said the per-vehicle
+  work would touch every call site anyway. It did.
+
+- **The class page's car cards gained imagery.** Somebody choosing between four
+  Corollas is choosing on colour, age and condition, and that grid was showing
+  them four identical blocks of text.
+
+- **"Or similar" is dropped wherever the photograph is of this car.** Found
+  while reading the card back rather than by a failing test: the search result
+  said "Toyota Corolla or similar" directly beneath a photograph of that exact
+  Corolla. It is the hire trade's standard hedge and it was harmless while every
+  card carried a class picture; above the car itself it contradicts the image
+  and spends the trust the photograph was added to earn. The booking locks this
+  vehicle row, so where the platform can show which car it is, it now says so —
+  and the vehicle page adds the colour, which is the thing somebody choosing
+  between two cars in one class is actually choosing on. Where the picture is
+  still a stand-in the hedge stays, and there is a test for that direction too.
+  Same lesson as the confirmation-page bug in Phase 5: **a line that was correct
+  on its own can become false when what sits next to it changes.**
+
+### The eager-loading tail
+
+`Vehicle::imagePaths()` reaches through to `vehicleClass`, and
+`Model::shouldBeStrict()` turns a missed eager-load into an exception rather
+than a silent N+1. `AvailabilityService` already loaded it; `VehicleController`
+already called `loadMissing`. **`VehicleClassController` did not**, and it is the
+one screen rendering every car in a class at once — so that was added, with the
+reason written at the call site rather than left as a bare `with()`.
+
+The Filament table would have got away with it, because the `vehicleClass.name`
+column causes the eager load as a side effect. That is a coincidence, not a
+guarantee: deleting that column would produce an exception on a screen nobody
+had touched. `modifyQueryUsing` now states the requirement.
+
+### ⚠ Deployment notes
+
+- **Contains a migration.** Additive and reversible; no existing row changes.
+- **No new permission row**, unusually — nothing to re-seed.
+- `storage:link` is already in place (`deploy.sh` creates it, and it was
+  verified on the 20i box on 2026-08-17).
+- **MariaDB, unverified:** `Vehicle::scopeWithoutImages()` is a *second*
+  `whereJsonLength` usage, and MariaDB implements JSON as `LONGTEXT` with a
+  `CHECK` rather than natively. The existing filter on Vehicle classes has still
+  never been exercised in production. If that one misbehaves, both do — see
+  OPEN-ITEMS.
+
+---
+
 ## Phase 5 — The customer site begins · 2026-08-09
 
 First customer-facing code in the project. Until now the platform could take a

@@ -162,10 +162,21 @@ environment exists. The mechanism is sound in principle on both engines, but
 "observed on MySQL 8.4" is the actual evidence and it does not transfer.
 
 Also unverified on MariaDB: `image_paths` is a JSON column, and MariaDB
-implements JSON as `LONGTEXT` with a `CHECK` rather than a native type.
-`VehicleClass::withoutImages()` uses `whereJsonLength`, so the **Photos filter
-on the Vehicle classes screen should be exercised in the panel** before relying
-on it.
+implements JSON as `LONGTEXT` with a `CHECK` rather than a native type. Both
+`VehicleClass::withoutImages()` and — since 2026-08-17 —
+`Vehicle::withoutImages()` use `whereJsonLength`.
+
+**Exercise the "Awaiting a photograph" filter on Vehicle classes and the
+"Awaiting its own photograph" filter on Vehicles, in the panel, before relying
+on either.** They share one foundation, so if `whereJsonLength` misbehaves on
+MariaDB both are wrong together and the scopes need rewriting — most likely to a
+`JSON_LENGTH(...) = 0 OR image_paths IS NULL` raw comparison, or to a plain
+`COALESCE(image_paths, '[]') IN ('[]', '')` string test.
+
+The cheapest moment to test this is **before the fleet is photographed**: apply
+the filter, upload photographs to one record, apply it again, and confirm that
+record drops out. Once everything has a picture the filter returns nothing
+whether it works or not.
 
 **The database must run at READ COMMITTED.** Set in `config/database.php` and
 overridable by `DB_ISOLATION_LEVEL`. The booking engine is incorrect under
@@ -348,20 +359,24 @@ Binding by id instead would avoid the ambiguity at the cost of a worse
 customer-facing URL, and would still not answer which operator's site a visitor
 is on.
 
-**The vehicle-image fallback is written out three times.** `home.blade.php`,
-`components/vehicle-card.blade.php` and `vehicle.blade.php` each contain their
-own copy of "photograph if there is one, illustrated panel if not". They drifted
-once already — the home page was rendering grey make-and-model text while the
-other two drew the silhouette, and the home page was the one being demonstrated.
-They were brought back into line on 2026-08-13 rather than unified, which fixes
-the symptom and leaves the cause.
+**The vehicle-image fallback was written out three times — RESOLVED
+2026-08-17.** `home.blade.php`, `components/vehicle-card.blade.php` and
+`vehicle.blade.php` each carried their own copy of "photograph if there is one,
+illustrated panel if not". They drifted once — the home page rendered grey
+make-and-model text while the other two drew the silhouette, and the home page
+was the one being demonstrated. Realigning them by hand on 2026-08-13 fixed the
+symptom and left the cause.
 
-Extracting an `x-vehicle-image` component is the real fix. It is deferred rather
-than forgotten because the per-vehicle photograph work will touch all three
-call sites anyway — the fallback chain becomes vehicle, then class, then
-silhouette — and that is the natural moment to do it once. A test asserts the
-brand-tinted panel is present and the old grey one is not, so a fourth copy
-appearing in the old style is caught.
+This entry predicted its own closure: *"deferred rather than forgotten because
+the per-vehicle photograph work will touch all three call sites anyway — the
+fallback chain becomes vehicle, then class, then silhouette — and that is the
+natural moment to do it once."* That is exactly what happened. `x-vehicle-image`
+is now the single owner of that markup, and the class page — which had no
+imagery at all — became a fourth call site rather than a fourth copy.
+
+The caller owns the sized box and passes the aspect, positioning and glyph size;
+the component owns what goes inside it. That is what stopped this becoming three
+components that drift instead of three blocks that drift.
 
 **KYC verification is not yet enforced on vehicle release.** Spec §14.6 requires
 KYC verified, balance settled and security deposit recorded. The latter two are

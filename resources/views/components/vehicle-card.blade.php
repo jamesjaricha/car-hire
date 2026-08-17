@@ -2,7 +2,14 @@
 
 @php
     $class = $vehicle->vehicleClass;
-    $image = $class?->primaryImagePath();
+    $image = $vehicle->primaryImagePath();
+
+    // An inherited photograph is described by the class, because that is what
+    // it honestly depicts — some other car in the same range. Only a
+    // photograph of THIS car may be captioned as this car.
+    $imageAlt = $vehicle->hasOwnImages()
+        ? $vehicle->displayName()
+        : ($class?->name ?? 'Vehicle');
 
     // The dates travel with the link so the detail page prices the same hire.
     // Carrying them in the URL rather than the session means the page can be
@@ -24,37 +31,18 @@
 | Most small operators have no photography, and a card built around an image
 | that does not exist looks broken rather than sparse. So the card is built from
 | type and specification chips, and a photograph is an improvement layered on
-| top when one has been uploaded. The silhouette is deliberately an illustration
-| and not a stand-in for a real car — nobody should mistake it for the vehicle
-| they are hiring.
+| top when one has been uploaded.
 |
-| The fallback chain is class photograph, then silhouette. When per-vehicle
-| photographs arrive, they slot in ahead of the class without this markup
-| changing shape.
+| The fallback chain is this car's own photographs, then its class's, then the
+| silhouette — resolved by `Vehicle::primaryImagePath()` and drawn by
+| `x-vehicle-image`, which is now the single owner of that markup.
 --}}
 <article class="rise liftable group flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm hover:shadow-lg hover:shadow-ink-900/5">
 
     <div class="relative aspect-[16/10] overflow-hidden bg-ink-100">
-        @if ($image)
-            <img src="{{ Storage::disk('public')->url($image) }}"
-                 alt="{{ $class->name }}"
-                 loading="lazy"
-                 {{-- Dimensions reserve the space so the card does not jump
-                      when the image arrives. --}}
-                 width="640" height="400"
-                 class="size-full object-cover">
-        @else
-            {{-- Brand tint rather than ink grey, and the glyph at full strength.
-                 `ink-400` on an `ink-100`→`ink-200` panel measured about 2.3:1,
-                 which is invisible enough to read as a missing asset. Same
-                 treatment as home.blade.php and vehicle.blade.php. --}}
-            <div class="flex size-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100">
-                <svg aria-hidden="true" class="w-2/5 text-brand-600" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M6 24h52M10 24V15l5-8h22l7 8h6a4 4 0 0 1 4 4v5M14 15h32"/>
-                    <circle cx="18" cy="24" r="4"/><circle cx="46" cy="24" r="4"/>
-                </svg>
-            </div>
-        @endif
+        <x-vehicle-image :path="$image"
+                         :alt="$imageAlt"
+                         width="640" height="400" />
 
         @if ($available > 1)
             <span class="absolute left-3 top-3 rounded-full bg-veld-600 px-2.5 py-1 text-xs font-semibold text-white">
@@ -72,8 +60,16 @@
         <h2 class="font-display text-lg font-semibold tracking-tight text-ink-900">
             {{ $class?->name ?? 'Vehicle' }}
         </h2>
+        {{-- "or similar" only when the picture is a stand-in.
+
+             It is the hire trade's standard hedge and it was harmless while
+             every card showed a class photograph. Above a photograph of THIS
+             car it contradicts the image directly — the customer is looking at
+             a specific Corolla and being told they might get a different one,
+             which undoes the trust the photograph was added to build. The
+             booking locks this vehicle row, so when we can show it, we say it. --}}
         <p class="mt-0.5 text-sm text-ink-500">
-            {{ $vehicle->make }} {{ $vehicle->model }} or similar
+            {{ $vehicle->make }} {{ $vehicle->model }}@unless ($vehicle->hasOwnImages()) or similar @endunless
         </p>
 
         {{-- Specification chips carry the card where a photograph would. Each

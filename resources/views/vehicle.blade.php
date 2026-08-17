@@ -4,7 +4,15 @@
 
 @php
     $zone = config('carhire.display_timezone');
-    $images = $class->imagePaths();
+
+    // This car's own photographs when it has any, its class's otherwise.
+    // `$ownPhotographs` decides what the page is allowed to CLAIM about them:
+    // this is the screen where somebody commits money, so a picture of a
+    // different car must say so rather than be left to imply otherwise.
+    $images = $vehicle->imagePaths();
+    $ownPhotographs = $vehicle->hasOwnImages();
+    $imageAlt = $ownPhotographs ? $vehicle->displayName() : $class->name;
+
     $money = fn (string $amount): string => $quote->currency.' '.number_format((float) $amount, 2);
 @endphp
 
@@ -41,24 +49,37 @@
             {{-- ── The vehicle ─────────────────────────────────────────────── --}}
             <div>
                 <div class="overflow-hidden rounded-2xl border border-ink-200 bg-ink-100">
-                    @if ($images !== [])
-                        <img src="{{ Storage::disk('public')->url($images[0]) }}"
-                             alt="{{ $class->name }}"
-                             width="960" height="600"
-                             class="aspect-[16/10] w-full object-cover">
-                    @else
-                        {{-- Same empty state as home.blade.php and
-                             x-vehicle-card. Three copies of this markup is two
-                             too many — extracting an x-vehicle-image component
-                             is the real fix and is noted in OPEN-ITEMS. --}}
-                        <div class="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100">
-                            <svg aria-hidden="true" class="w-1/3 text-brand-600" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M6 24h52M10 24V15l5-8h22l7 8h6a4 4 0 0 1 4 4v5M14 15h32"/>
-                                <circle cx="18" cy="24" r="4"/><circle cx="46" cy="24" r="4"/>
-                            </svg>
-                        </div>
-                    @endif
+                    {{-- `eager`, not lazy: this is the hero, above the fold. --}}
+                    <x-vehicle-image :path="$images[0] ?? null"
+                                     :alt="$imageAlt"
+                                     loading="eager"
+                                     width="960" height="600"
+                                     imgClass="aspect-[16/10] w-full object-cover"
+                                     panelClass="aspect-[16/10] w-full"
+                                     glyphClass="w-1/3" />
                 </div>
+
+                {{-- Said plainly rather than left to be assumed.
+
+                     The whole reason vehicles carry their own photographs is
+                     that a customer hiring a specific registration cannot
+                     verify a picture of a different car — and cannot trust it.
+                     Falling back to the class gallery is still better than an
+                     empty frame, but presenting somebody else's Corolla in
+                     silence is precisely the misrepresentation being fixed.
+                     So the page states which it is, on the screen where money
+                     is about to be committed. --}}
+                @if ($images !== [] && ! $ownPhotographs)
+                    <p class="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-ink-500">
+                        <svg aria-hidden="true" class="mt-0.5 size-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>
+                            Photographs show a {{ $class->name }} vehicle, not this exact car.
+                            You are booking {{ $vehicle->displayName() }}{{ $vehicle->year ? ', '.$vehicle->year : '' }}{{ $vehicle->colour ? ', '.strtolower((string) $vehicle->colour) : '' }}.
+                        </span>
+                    </p>
+                @endif
 
                 {{-- The rest of the gallery, when there is one. --}}
                 @if (count($images) > 1)
@@ -78,8 +99,14 @@
                 <h1 class="mt-6 font-display text-3xl font-semibold tracking-tight text-ink-900">
                     {{ $class->name }}
                 </h1>
+                {{-- Same rule as the search card: "or similar" is the trade's
+                     standard hedge, and it contradicts a photograph of this
+                     exact car. When the pictures above are this vehicle's own,
+                     the page names the vehicle and stops hedging — and adds the
+                     colour, which is the difference a customer choosing between
+                     two cars in one class is actually choosing on. --}}
                 <p class="mt-1 text-ink-600">
-                    {{ $vehicle->make }} {{ $vehicle->model }}{{ $vehicle->year ? ', '.$vehicle->year : '' }} or similar
+                    {{ $vehicle->make }} {{ $vehicle->model }}{{ $vehicle->year ? ', '.$vehicle->year : '' }}@if ($ownPhotographs){{ $vehicle->colour ? ', '.strtolower((string) $vehicle->colour) : '' }}@else or similar @endif
                 </p>
 
                 @if ($class->description)

@@ -158,34 +158,53 @@
                                'pickup' => $defaultPickup,
                                'dropoff' => $defaultDropoff,
                            ]) }}"
-                           class="rise liftable group flex h-full flex-col rounded-2xl border border-ink-200 bg-white p-5 shadow-sm [transition:transform_200ms_var(--ease-out-strong),box-shadow_200ms_var(--ease-out-strong),border-color_200ms_ease] hover:border-brand-200 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
-                            <p class="font-display text-lg font-semibold text-ink-900">
-                                {{ $vehicle->make }} {{ $vehicle->model }}
-                            </p>
-                            <p class="mt-0.5 text-sm text-ink-500">
-                                {{ $vehicle->year ? $vehicle->year.' · ' : '' }}{{ $vehicle->branch?->name }}
-                            </p>
+                           class="rise liftable group flex h-full flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm [transition:transform_200ms_var(--ease-out-strong),box-shadow_200ms_var(--ease-out-strong),border-color_200ms_ease] hover:border-brand-200 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
 
-                            <ul class="mt-3 flex flex-wrap gap-1.5 text-xs font-medium text-ink-700">
-                                @if ($vehicle->seats)
-                                    <li class="rounded-lg bg-ink-50 px-2 py-1">{{ $vehicle->seats }} seats</li>
-                                @endif
-                                @if ($vehicle->transmission)
-                                    <li class="rounded-lg bg-ink-50 px-2 py-1">{{ ucfirst((string) $vehicle->transmission) }}</li>
-                                @endif
-                                @if ($vehicle->fuel_type)
-                                    <li class="rounded-lg bg-ink-50 px-2 py-1">{{ ucfirst((string) $vehicle->fuel_type) }}</li>
-                                @endif
-                            </ul>
+                            {{-- THIS car's photograph, which is the entire point
+                                 of this list. Somebody choosing between four
+                                 Corollas is choosing on colour, age and
+                                 condition, and until now this grid showed them
+                                 four identical blocks of text. Falls back to
+                                 the class gallery, then the silhouette. --}}
+                            <div class="relative aspect-[16/10] overflow-hidden bg-ink-100">
+                                <x-vehicle-image :path="$vehicle->primaryImagePath()"
+                                                 :alt="$vehicle->hasOwnImages() ? $vehicle->displayName() : $class->name"
+                                                 width="480" height="300"
+                                                 imgClass="absolute inset-0 size-full object-cover [transition:transform_300ms_var(--ease-out-strong)] group-hover:scale-105"
+                                                 panelClass="absolute inset-0"
+                                                 glyphClass="w-2/5" />
+                            </div>
 
-                            {{-- A visible affordance rather than only the hover
-                                 lift, which does not exist on a touch screen. --}}
-                            <p class="mt-auto flex items-center gap-1.5 pt-4 text-sm font-semibold text-brand-600">
-                                See price and book
-                                <svg aria-hidden="true" class="size-4 [transition:transform_200ms_var(--ease-out-strong)] group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
-                                </svg>
-                            </p>
+                            <div class="flex flex-1 flex-col p-5">
+                                <p class="font-display text-lg font-semibold text-ink-900">
+                                    {{ $vehicle->make }} {{ $vehicle->model }}
+                                </p>
+                                <p class="mt-0.5 text-sm text-ink-500">
+                                    {{ $vehicle->year ? $vehicle->year.' · ' : '' }}{{ $vehicle->branch?->name }}
+                                </p>
+
+                                <ul class="mt-3 flex flex-wrap gap-1.5 text-xs font-medium text-ink-700">
+                                    @if ($vehicle->seats)
+                                        <li class="rounded-lg bg-ink-50 px-2 py-1">{{ $vehicle->seats }} seats</li>
+                                    @endif
+                                    @if ($vehicle->transmission)
+                                        <li class="rounded-lg bg-ink-50 px-2 py-1">{{ ucfirst((string) $vehicle->transmission) }}</li>
+                                    @endif
+                                    @if ($vehicle->fuel_type)
+                                        <li class="rounded-lg bg-ink-50 px-2 py-1">{{ ucfirst((string) $vehicle->fuel_type) }}</li>
+                                    @endif
+                                </ul>
+
+                                {{-- A visible affordance rather than only the
+                                     hover lift, which does not exist on a touch
+                                     screen. --}}
+                                <p class="mt-auto flex items-center gap-1.5 pt-4 text-sm font-semibold text-brand-600">
+                                    See price and book
+                                    <svg aria-hidden="true" class="size-4 [transition:transform_200ms_var(--ease-out-strong)] group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+                                    </svg>
+                                </p>
+                            </div>
                         </a>
                     </li>
                 @endforeach
