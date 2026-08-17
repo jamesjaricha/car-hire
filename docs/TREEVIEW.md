@@ -492,6 +492,18 @@ carhire/
 │   └── TestCase.php
 │
 ├── .env.example
+├── .user.ini                                  PHP upload limits for 20i. Sits
+│                                              ABOVE Filament's 4 MB cap so PHP
+│                                              never rejects before the validator.
+├── deploy.sh                              ★   Every release after the first.
+│                                              Absolute PHP/composer paths (the
+│                                              20i composer alias is invisible to
+│                                              non-interactive shells), refuses to
+│                                              migrate without a verified backup,
+│                                              and re-syncs permissions every run.
+│                                              ⚠ Updates itself at step 1 — the
+│                                              first run after changing it
+│                                              executes the OLD version.
 ├── phpunit.xml                                MySQL, not SQLite. The comment says why.
 └── README.md
 ```

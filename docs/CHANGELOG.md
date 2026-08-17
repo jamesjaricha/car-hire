@@ -286,6 +286,68 @@ Three tests in `SearchPageTest`, the important one being the date agreement —
 that is the failure that would ship silently, because both pages would look
 entirely correct in isolation.
 
+### Deployment scaffolding · 2026-08-13
+
+The client asked for a live link, so the two files a 20i deploy needs and a
+first-deploy runbook specific to this app.
+
+- **`deploy.sh`** — pull, install, build, migrate, sync permissions, rebuild
+  caches. Three things in it are not obvious:
+  - **Absolute PHP and composer paths.** On 20i `composer` is a shell *alias*
+    that exists only in interactive shells; a script gets `/usr/local/bin/composer`
+    hard-coded to PHP 8.0.30, which refuses the Laravel 13 tree. The symptom is
+    dozens of composer errors blaming the PHP version while `php -v` in the same
+    session correctly reports 8.4.
+  - **It refuses to migrate without a verified non-empty backup.** DEPLOYMENT.md
+    already said "dump every time, and verify the file is non-zero"; a script is
+    the only way that actually happens every time. The dump runs *before*
+    migrations, because migrations are the destructive step.
+  - **`RolesAndPermissionsSeeder` runs on every deploy.** `hasPermissionTo()`
+    throws `PermissionDoesNotExist` for a permission missing from the table
+    rather than returning false, so any release adding a `StaffPermission` case
+    breaks the panel until it is re-run. Automating it means that cannot be the
+    thing somebody forgot — and it already would have been, twice this month.
+- **`.user.ini`** — upload limits above Filament's 4 MB cap, so PHP never
+  rejects a photograph before Laravel's validator can explain why. Without it a
+  phone photograph returns a raw nginx 413.
+- **A first-deploy section in DEPLOYMENT.md** covering only what is specific to
+  this app: the `TRIGGER` check, `DB_ISOLATION_LEVEL`, verifying the isolation
+  level actually took, the three production-safe seeders, and creating the first
+  Super Admin by hand because `DemoStaffSeeder` refuses to run outside `local`.
+
+### Decisions
+
+- **The demo deploys as real `APP_ENV=production`, not a staging environment.**
+  Loosening the demo seeders to permit staging would have put accounts with the
+  password `password` on a public URL. Instead `DemoFleetSeeder` is run
+  explicitly — it has no environment guard of its own, only `DatabaseSeeder`'s
+  call to it does — and the one admin account is created by hand with a chosen
+  password. No known credentials exist anywhere on the server.
+
+- **`TRIGGER` is checked before the database has anything in it.** It is the one
+  failure that stops a deploy dead rather than degrading, so it is step 1 rather
+  than something discovered when `migrate` errors halfway through.
+
+- **The isolation level is verified after deploying, not assumed.** A managed
+  host that pins `REPEATABLE READ` would reintroduce both concurrency failures
+  with no error at all — just double bookings under load. `SELECT
+  @@transaction_isolation` is the check.
+
+### ⚠ Recorded honestly
+
+The site will be **publicly reachable and indexable**, on the operator's
+instruction after the risk was put to him. A passer-by can create a real booking
+against invented pricing, and nothing notifies anybody, because notifications are
+Phase 6. A search engine may index placeholder rates under the client's domain.
+The footer's "Demonstration site" is the whole of the mitigation.
+
+Cash will be the only payment method offered, because
+`DemoPaymentDetailsSeeder` refuses production and an unconfigured method is
+withheld from checkout. Correct, and it will look like a fault to anybody who
+does not know why.
+
+---
+
 ### The home page shows classes, not one car standing in for each · same day
 
 The cards were vehicles, one per class, so a single Corolla represented the
