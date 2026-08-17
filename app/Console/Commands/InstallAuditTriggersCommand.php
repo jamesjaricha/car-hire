@@ -75,9 +75,15 @@ final class InstallAuditTriggersCommand extends Command
         }
 
         $this->newLine();
-        $this->components->task('Installing', static fn (): bool => AuditLogTriggers::install());
 
-        if (AuditLogTriggers::allInstalled()) {
+        // Deliberately NOT $this->components->task(). That helper prints DONE
+        // unless its callback throws, so it reported "Installing ... DONE"
+        // immediately above "ERROR Refused by the database" on the first real
+        // deploy — output that reads as though the install succeeded and then
+        // failed. A deploy log nobody can trust is worse than a plain sentence.
+        $this->line('Attempting to install...');
+
+        if (AuditLogTriggers::install() && AuditLogTriggers::allInstalled()) {
             $this->components->info('audit_log is now protected at the database level.');
             $this->line('Spec section 12 is satisfied again. Record this in docs/OPEN-ITEMS.md.');
 

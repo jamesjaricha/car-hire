@@ -137,6 +137,36 @@ code. On MySQL it is a row lock taken inside `VehicleHoldService::place()`, whic
 is correct only while that remains the sole writer to `vehicle_holds`. The
 concurrency test exists to keep it that way.
 
+**Production is MariaDB 10.11, the suite proves MySQL 8.4.** Discovered
+2026-08-14: the 20i package runs **MariaDB 10.11.17**, while every test —
+including the four multi-process concurrency suites that found two real
+double-booking bugs — runs against MySQL 8.4.3 locally. MariaDB's InnoDB is a
+fork, not the same engine.
+
+Three things were checked directly rather than assumed, and all three hold:
+
+- **`SELECT @@tx_isolation` from the application's own connection returns
+  `READ-COMMITTED`.** Laravel's `isolation_level` config does take effect on
+  MariaDB, so the engine's concurrency mechanism is intact. Note the server
+  *default* is REPEATABLE-READ — reading the variable from a separate `mysql`
+  client session shows that default and proves nothing about the app.
+- **The §9.3 `CHECK` constraint exists**, confirmed via `SHOW CREATE TABLE
+  refunds`. MariaDB filters `information_schema.CHECK_CONSTRAINTS` by privilege,
+  so an empty result from that view is not evidence of absence — a wrong
+  inference was drawn from it once already.
+- `lockForUpdate` and `SELECT … FOR UPDATE` behave as required.
+
+What remains unproven: **the concurrency suites have never been run against
+MariaDB.** They cannot be run against production, and no MariaDB test
+environment exists. The mechanism is sound in principle on both engines, but
+"observed on MySQL 8.4" is the actual evidence and it does not transfer.
+
+Also unverified on MariaDB: `image_paths` is a JSON column, and MariaDB
+implements JSON as `LONGTEXT` with a `CHECK` rather than a native type.
+`VehicleClass::withoutImages()` uses `whereJsonLength`, so the **Photos filter
+on the Vehicle classes screen should be exercised in the panel** before relying
+on it.
+
 **The database must run at READ COMMITTED.** Set in `config/database.php` and
 overridable by `DB_ISOLATION_LEVEL`. The booking engine is incorrect under
 InnoDB's `REPEATABLE READ` default — see ARCHITECTURE.md §1. Verify on the
