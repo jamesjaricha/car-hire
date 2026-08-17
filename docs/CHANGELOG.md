@@ -286,6 +286,80 @@ Three tests in `SearchPageTest`, the important one being the date agreement —
 that is the failure that would ship silently, because both pages would look
 entirely correct in isolation.
 
+### The TRIGGER privilege ran out of road · 2026-08-14
+
+The risk carried since Phase 1 turned out to be real. `SHOW GRANTS` on the 20i
+package returns no `TRIGGER` privilege, so the two triggers enforcing
+`audit_log`'s append-only guarantee cannot be created in production.
+
+Following the instruction that had been sitting in DEPLOYMENT.md for months —
+*"verify on the production database before launch, not after"* — is what found
+it, before any real booking existed. That was the point of writing it down.
+
+### Added
+
+- **`App\Support\AuditLogTriggers`** — the trigger SQL, and the only place it
+  lives. `installed()`, `missing()`, `install()`, `refusalWarning()`.
+- **`carhire:install-audit-triggers`** — installs whatever is missing, or
+  `--check` to report and exit 1 when unprotected. Runs in production, by hand.
+- `deploy.sh` reports the guarantee's state on every deploy.
+- `AuditLogTriggerInstallationTest` — seven tests.
+
+### Decisions
+
+- **The migration warns and continues; it no longer fails.** Failing was worse in
+  both directions. `Schema::create` succeeds before `CREATE TRIGGER` is refused,
+  so a hard failure left `audit_log` existing with the migration unrecorded, and
+  the retry erroring on "table already exists" — a hosting limitation presenting
+  as a broken build. Swallowing it silently would have shipped a weaker audit
+  trail with nothing anywhere saying so. It now prints to stderr **and** the log,
+  on every deploy.
+
+- **A privilege refusal is distinguished from any other failure.** Errors 1142,
+  1227 and 1419 are tolerated; everything else still throws. A malformed
+  statement is a bug in our SQL and must not hide behind a hosting excuse. 1419
+  is included because on hosts with binary logging and no
+  `log_bin_trust_function_creators` the privilege appears present and the
+  statement is still refused.
+
+- **The repair command is what makes "reversible" true rather than rhetorical.**
+  Without a way to add the triggers to a populated table afterwards, "we will fix
+  the audit trail when the host grants the privilege" would have had no mechanism
+  behind it. Grant, run one command, no data touched, no migration.
+
+- **`deploy.sh` does not abort on the check.** The condition is known and
+  disclosed; a release failing for something that was already true yesterday
+  teaches people to ignore deploy output. Loud warning, non-fatal exit.
+
+- **The SQL moved out of the migration into a support class**, which makes a
+  migration depend on application code — normally worth avoiding. The
+  alternative was two copies of the DDL drifting apart, and the class carries a
+  do-not-rename warning for the migration that references it.
+
+### ⚠ What is actually weaker now
+
+`audit_log` immutability is enforced only by `AuditLogEntry` refusing updates and
+deletes in PHP. That covers every path the application takes. It does **not**
+cover raw SQL, a database client, or a model added later by somebody who has not
+read the docblock — and §12 asks for the form that does.
+
+Recorded in OPEN-ITEMS.md as blocking real launch. The operator is being told
+alongside the demo link, per his own instruction when the choice was put to him.
+
+### One test is honest about what it cannot prove
+
+The refusal path is **not** exercised. Revoking `TRIGGER` from the test user needs
+a grant the test user does not hold, and granting it to make the test possible
+defeats the purpose. So that branch is reasoned, not demonstrated, and the test
+says so rather than letting a green tick imply coverage — the same treatment
+`BookingExpiryServiceTest`'s race test gets.
+
+What *is* tested is the part the promise to the operator rests on: drop both
+triggers, restore them with the command, and prove a raw `UPDATE` is refused
+afterwards.
+
+---
+
 ### Deployment scaffolding · 2026-08-13
 
 The client asked for a live link, so the two files a 20i deploy needs and a

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Customer;
 
 use App\Contracts\PricingServiceContract;
+use App\Enums\VehicleStatus;
 use App\Models\Branch;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
@@ -66,7 +67,7 @@ final class VehicleClassPageTest extends TestCase
         $this->vehicle($branch, $class, [
             'make' => 'Toyota',
             'model' => 'Vitz',
-            'status' => \App\Enums\VehicleStatus::Maintenance,
+            'status' => VehicleStatus::Maintenance,
         ]);
 
         $this->get(route('classes.show', ['slug' => $class->slug]))

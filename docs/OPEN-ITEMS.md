@@ -85,12 +85,45 @@ complete.
 
 ## Technical risks carried forward
 
-**`TRIGGER` privilege on production.** `audit_log` immutability is enforced by
-MySQL `BEFORE UPDATE` and `BEFORE DELETE` triggers. These are confirmed working
-locally on MySQL 8.4.3. Shared hosting does not always grant the `TRIGGER`
-privilege. If production refuses to create them, the guarantee falls back to an
-application-level check, which is weaker than spec §12 requires. **Verify on the
-production database before launch, not after.**
+**⚠ `TRIGGER` privilege — CONFIRMED ABSENT IN PRODUCTION, 2026-08-14. BLOCKING
+REAL LAUNCH.**
+
+No longer a risk; a live condition. `SHOW GRANTS` for `james-8c41` on the 20i
+package `pule.jarichatech.com` returns no `TRIGGER` privilege, so the two
+`BEFORE UPDATE` / `BEFORE DELETE` triggers protecting `audit_log` **do not exist
+on the production database.**
+
+What that means concretely: `audit_log` immutability is enforced only by
+`AuditLogEntry`, which refuses updates and deletes in PHP. That protects every
+path through the model — which is every path the application itself uses. It does
+**not** protect against raw SQL, a database client, or a future model added by
+somebody who has not read the docblock. Spec §12 requires the stronger form.
+
+The migration no longer fails on this. It warns on stderr and in the log, on
+every deploy, and continues — see the migration's own docblock for why failing
+hard was worse. **This is a deliberate, disclosed downgrade for a demonstration
+deployment, not an accepted permanent state.**
+
+**It is reversible, and there is a mechanism:**
+
+```bash
+php artisan carhire:install-audit-triggers --check   # reports, exit 1 if unprotected
+php artisan carhire:install-audit-triggers           # installs whatever is missing
+```
+
+Ask the host for `GRANT TRIGGER ON \`<database>\`.* TO \`<user>\`@\`%\`;` then run
+the command. No data is touched and no migration is needed. There is a test that
+drops the triggers, restores them with the command, and proves a raw `UPDATE` is
+refused afterwards.
+
+**Before this platform takes real money**, either the privilege is granted and
+the command run, or the operator accepts in writing that the audit trail is
+application-enforced. The operator was told about this alongside the demo link.
+
+**Prior wording, kept for context:** "Shared hosting does not always grant the
+`TRIGGER` privilege. Verify on the production database before launch, not
+after." That was the correct instruction and following it is what found this —
+before any real booking existed, which was the point.
 
 **Hold expiry depends on the scheduler.** A dead expiry job would normally lock
 vehicles out of sale indefinitely. Mitigated two ways: the availability query

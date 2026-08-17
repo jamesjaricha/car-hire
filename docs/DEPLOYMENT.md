@@ -17,17 +17,24 @@ the platform runbook. What follows is only what is specific to **this** app.
 
 ### 1. Check the `TRIGGER` privilege BEFORE anything else
 
-This is the one thing that can stop the deploy dead, and the cheapest moment to
-find out is before the database has anything in it.
+Cheapest moment to find out is before the database has anything in it.
 
 ```bash
-mysql -u <user> -p -e "SHOW GRANTS;"
+mysql -h 127.0.0.1 -u <user> -p -e "SHOW GRANTS;"
 ```
 
-`TRIGGER` must appear. If it does not, `php artisan migrate` **fails** on
-`2026_08_03_000007_create_audit_log_table.php` and the deploy stops there. See
-"The `TRIGGER` privilege" below — that is a conversation with the business, not
-something to work around quietly.
+**On the current package (`pule.jarichatech.com`) `TRIGGER` is ABSENT** —
+confirmed 2026-08-14. The migration tolerates that: it prints a loud warning and
+continues, rather than failing and leaving a half-migrated database. After
+deploying, confirm the state deliberately rather than assuming:
+
+```bash
+php artisan carhire:install-audit-triggers --check
+```
+
+Exit 1 means `audit_log` is not protected at the database level. That is the
+current, known, disclosed state — see OPEN-ITEMS.md. It is **blocking real
+launch**, and reversible with one command the day the host grants the privilege.
 
 ### 2. `.env`
 
@@ -87,14 +94,15 @@ mysql -u <user> -p -e "SELECT @@transaction_isolation;"
 Expect `READ-COMMITTED`. If it reports `REPEATABLE-READ`, the session setting is
 being ignored or overridden; stop and resolve it with 20i before taking bookings.
 
-### 5. Confirm the audit triggers exist
+### 5. Confirm the audit trigger state
 
 ```bash
-mysql -u <user> -p -e "SHOW TRIGGERS FROM <database>;"
+php artisan carhire:install-audit-triggers --check
 ```
 
-`audit_log_block_update` and `audit_log_block_delete` must both be listed. The
-migration succeeding is not proof — check.
+Exit 0 means both triggers are present and §12 is satisfied. Exit 1 means they
+are not, which is the expected result on this package today. **The migration
+succeeding is not proof** — it is allowed to continue without them.
 
 ### 6. Seed
 
@@ -197,33 +205,38 @@ under "Before the first real booking" is what separates it from a live one.
 
 ## Unresolved before launch
 
-### The `TRIGGER` privilege
+### ⚠ The `TRIGGER` privilege — ABSENT, and the audit trail is weaker for it
 
-`audit_log` immutability depends on two MySQL triggers created by
-`2026_08_03_000007_create_audit_log_table.php`. They are confirmed working on
-MySQL 8.4.3 locally.
+**Settled as a known state on 2026-08-14, not still an open question.**
 
-Shared hosting does not always grant the `TRIGGER` privilege to database users.
-If 20i refuses to create them, the migration will fail, and the append-only
-guarantee falls back to the application-level check in `AuditLogEntry` — which
-is materially weaker than spec §12 requires.
+`SHOW GRANTS` for `james-8c41` on `pule.jarichatech.com` lists no `TRIGGER`
+privilege, so `audit_log_block_update` and `audit_log_block_delete` **do not
+exist on the production database.** Immutability is enforced only by
+`AuditLogEntry` refusing updates and deletes in PHP.
 
-**Check this early.** On an SSH session:
+That covers every path the application itself takes. It does not cover raw SQL,
+a database client, or a model somebody adds later without reading the docblock —
+and spec §12 asks for the form that does.
 
-```bash
-mysql -u <user> -p -e "SHOW GRANTS;"
-```
-
-Look for `TRIGGER` in the grant list. If it is absent, that is a decision to
-take to the business before launch, not a thing to work around quietly.
-
-After migrating, confirm the triggers exist:
+The migration warns and continues rather than failing; the reasoning is in its
+docblock. Check the live state rather than inferring it from a successful deploy:
 
 ```bash
-mysql -u <user> -p -e "SHOW TRIGGERS FROM <database>;"
+php artisan carhire:install-audit-triggers --check
 ```
 
-Both `audit_log_block_update` and `audit_log_block_delete` must be listed.
+**To restore it** — no data touched, no migration, any time:
+
+```
+GRANT TRIGGER ON `bandap-353030303b9a`.* TO `james-8c41`@`%`;
+```
+
+```bash
+php artisan carhire:install-audit-triggers
+```
+
+Tracked in [OPEN-ITEMS.md](OPEN-ITEMS.md) as blocking real launch. The operator
+was told alongside the demo link.
 
 ---
 

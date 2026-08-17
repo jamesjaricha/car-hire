@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Support\AuditLogTriggers;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -21,11 +23,24 @@ use Illuminate\Support\Facades\Schema;
  * the table correctly in the first place. Nothing writes to it until there are
  * staff actions worth recording.
  *
- * Deployment note: this requires the TRIGGER privilege. Shared hosting does not
- * always grant it. If the production database refuses these statements, the
- * immutability guarantee degrades to an application-level guard, which is
- * materially weaker than the spec demands — that must be raised before launch,
- * not worked around quietly.
+ * Deployment note: this requires the TRIGGER privilege, and shared hosting does
+ * not always grant it. On the 20i package used for the first deployment
+ * (2026-08-14) it is absent.
+ *
+ * This migration therefore no longer FAILS when the triggers are refused — it
+ * warns, loudly, and continues. That is not the guarantee being quietly
+ * downgraded: the refusal is printed on every deploy, recorded in OPEN-ITEMS.md
+ * as blocking real launch, and `carhire:install-audit-triggers` restores it the
+ * day the privilege is granted, without touching the data.
+ *
+ * The alternative was worse in both directions. Failing hard left a
+ * half-migrated database — `audit_log` created, the migration unrecorded, and a
+ * retry erroring on "table already exists" — and made a hosting limitation look
+ * like a broken build. Swallowing the error silently would have shipped a weaker
+ * audit trail with nothing anywhere saying so.
+ *
+ * The SQL itself lives in `App\Support\AuditLogTriggers` so that the repair
+ * command cannot drift from what the migration creates.
  *
  * There is no `updated_at`. A row that can be updated is not an audit record.
  */
@@ -73,21 +88,18 @@ return new class extends Migration
             return;
         }
 
-        DB::unprepared(<<<'SQL'
-            CREATE TRIGGER audit_log_block_update
-            BEFORE UPDATE ON audit_log
-            FOR EACH ROW
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'audit_log is append-only: rows cannot be updated.'
-        SQL);
+        if (AuditLogTriggers::install()) {
+            return;
+        }
 
-        DB::unprepared(<<<'SQL'
-            CREATE TRIGGER audit_log_block_delete
-            BEFORE DELETE ON audit_log
-            FOR EACH ROW
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'audit_log is append-only: rows cannot be deleted.'
-        SQL);
+        // Refused for want of a privilege. Say so on stderr as well as in the
+        // log: a deploy scrolling past this in a wall of migration output is
+        // exactly how a weaker audit trail becomes something nobody knew about.
+        Log::warning(AuditLogTriggers::refusalWarning());
+
+        fwrite(STDERR, PHP_EOL.str_repeat('!', 78).PHP_EOL);
+        fwrite(STDERR, AuditLogTriggers::refusalWarning().PHP_EOL);
+        fwrite(STDERR, str_repeat('!', 78).PHP_EOL.PHP_EOL);
     }
 
     public function down(): void

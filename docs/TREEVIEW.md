@@ -21,8 +21,14 @@ carhire/
 │   │   │   ├── AttemptRefundDisbursementCommand.php
 │   │   │   │                                 Test harness. One payout attempt.
 │   │   │   ├── AttemptVehicleHoldCommand.php Test harness. One hold attempt.
-│   │   │   └── ExpireBookingsCommand.php ★   NOT a harness. Runs in production,
-│   │   │                                     every 5 minutes, and by hand.
+│   │   │   ├── ExpireBookingsCommand.php ★   NOT a harness. Runs in production,
+│   │   │   │                                 every 5 minutes, and by hand.
+│   │   │   └── InstallAuditTriggersCommand.php ★
+│   │   │                                     NOT a harness either. What makes
+│   │   │                                     the absent TRIGGER privilege a
+│   │   │                                     reversible condition rather than a
+│   │   │                                     permanent downgrade. --check exits
+│   │   │                                     1 when audit_log is unprotected.
 │   │   └── Concerns/
 │   │       └── WaitsForBarrier.php           Holds spawned processes at a shared
 │   │                                         instant so contention is real.
@@ -307,6 +313,11 @@ carhire/
 │   │   └── Settings/SettingsRepository.php        Cached, typed configuration.
 │   │
 │   └── Support/
+│       ├── AuditLogTriggers.php           ★   The append-only SQL, and the only
+│       │                                      place it lives. ⚠ REFERENCED BY A
+│       │                                      MIGRATION — do not rename. Tells a
+│       │                                      privilege refusal (1142/1227/1419)
+│       │                                      apart from a real SQL error.
 │       └── Money.php                      ★   All monetary arithmetic. Rounds half
 │                                              up; bcmath alone truncates.
 │
