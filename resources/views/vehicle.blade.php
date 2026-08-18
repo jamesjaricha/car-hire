@@ -4,7 +4,15 @@
 
 @php
     $zone = config('carhire.display_timezone');
-    $images = $class->imagePaths();
+
+    // This car's own photographs when it has any, its class's otherwise.
+    // `$ownPhotographs` decides what the page is allowed to CLAIM about them:
+    // this is the screen where somebody commits money, so a picture of a
+    // different car must say so rather than be left to imply otherwise.
+    $images = $vehicle->imagePaths();
+    $ownPhotographs = $vehicle->hasOwnImages();
+    $imageAlt = $ownPhotographs ? $vehicle->displayName() : $class->name;
+
     $money = fn (string $amount): string => $quote->currency.' '.number_format((float) $amount, 2);
 @endphp
 
@@ -41,24 +49,50 @@
             {{-- ── The vehicle ─────────────────────────────────────────────── --}}
             <div>
                 <div class="overflow-hidden rounded-2xl border border-ink-200 bg-ink-100">
-                    @if ($images !== [])
-                        <img src="{{ Storage::disk('public')->url($images[0]) }}"
-                             alt="{{ $class->name }}"
-                             width="960" height="600"
-                             class="aspect-[16/10] w-full object-cover">
-                    @else
-                        {{-- Same empty state as home.blade.php and
-                             x-vehicle-card. Three copies of this markup is two
-                             too many — extracting an x-vehicle-image component
-                             is the real fix and is noted in OPEN-ITEMS. --}}
-                        <div class="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100">
-                            <svg aria-hidden="true" class="w-1/3 text-brand-600" viewBox="0 0 64 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M6 24h52M10 24V15l5-8h22l7 8h6a4 4 0 0 1 4 4v5M14 15h32"/>
-                                <circle cx="18" cy="24" r="4"/><circle cx="46" cy="24" r="4"/>
-                            </svg>
-                        </div>
-                    @endif
+                    {{-- `eager`, not lazy: this is the hero, above the fold. --}}
+                    <x-vehicle-image :path="$images[0] ?? null"
+                                     :alt="$imageAlt"
+                                     loading="eager"
+                                     width="960" height="600"
+                                     imgClass="aspect-[16/10] w-full object-cover"
+                                     panelClass="aspect-[16/10] w-full"
+                                     glyphClass="w-1/3" />
                 </div>
+
+                {{-- Said plainly rather than left to be assumed.
+
+                     The whole reason vehicles carry their own photographs is
+                     that a customer hiring a specific registration cannot
+                     verify a picture of a different car — and cannot trust it.
+                     Falling back to the class gallery is still better than an
+                     empty frame, but presenting somebody else's Corolla in
+                     silence is precisely the misrepresentation being fixed.
+                     So the page states which it is, on the screen where money
+                     is about to be committed. --}}
+                @if ($images !== [] && ! $ownPhotographs)
+                    <p class="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-ink-500">
+                        <svg aria-hidden="true" class="mt-0.5 size-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                        </svg>
+                        {{-- "another vehicle in the X range" rather than
+                             "a X vehicle", because no article fits every class
+                             name: "a Economy" and "an SUV" cannot both come out
+                             of one template, and the seeded fleet contains both
+                             shapes. This phrasing needs no article at all.
+
+                             It also no longer repeats what the customer is
+                             booking. It said so, and the subtitle immediately
+                             below hedged the same fact — two lines, each
+                             defensible alone, telling the reader opposite
+                             things. Same failure as the Phase 5 confirmation
+                             screen. The identity of the car belongs in one
+                             place, and this sentence is only about the
+                             photographs. --}}
+                        <span>
+                            Photographs show another vehicle in the {{ $class->name }} range, not this exact car.
+                        </span>
+                    </p>
+                @endif
 
                 {{-- The rest of the gallery, when there is one. --}}
                 @if (count($images) > 1)
@@ -78,8 +112,29 @@
                 <h1 class="mt-6 font-display text-3xl font-semibold tracking-tight text-ink-900">
                     {{ $class->name }}
                 </h1>
+                {{-- Names the car, and only the car.
+
+                     "Or similar" is the hire trade's standard hedge and it is
+                     removed here rather than made conditional. This page
+                     already promises, six lines down under "What is included",
+                     that "a specific vehicle is held for you once you reserve"
+                     — which is true, because VehicleHoldService::place() locks
+                     this row. A hedge sitting above that promise contradicted
+                     it whether or not a photograph was involved, so the
+                     photograph work merely made an existing tension visible.
+
+                     The colour is now always shown rather than only alongside
+                     an own photograph. It is a plain fact about the car, and it
+                     matters MOST when there is no photograph — with a stand-in
+                     picture it is the only thing telling somebody what they are
+                     collecting.
+
+                     ⚠ Spec §8.3 lets staff reassign a booking to another
+                     vehicle of the same class, so "or similar" was not pure
+                     boilerplate. That is a commercial copy decision for the
+                     operator, flagged rather than settled here. --}}
                 <p class="mt-1 text-ink-600">
-                    {{ $vehicle->make }} {{ $vehicle->model }}{{ $vehicle->year ? ', '.$vehicle->year : '' }} or similar
+                    {{ $vehicle->make }} {{ $vehicle->model }}{{ $vehicle->year ? ', '.$vehicle->year : '' }}{{ $vehicle->colour ? ', '.strtolower((string) $vehicle->colour) : '' }}
                 </p>
 
                 @if ($class->description)

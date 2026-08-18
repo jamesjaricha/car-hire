@@ -211,7 +211,13 @@ carhire/
 │   │       │   │                             AND undehydrated without
 │   │       │   │                             `fleet.manage`, so a manager's
 │   │       │   │                             save cannot clear a price.
+│   │       │   │                             Photographs sit here too — same
+│   │       │   │                             override shape, none of the danger,
+│   │       │   │                             and NOT a pricing power.
 │   │       │   └── Tables/VehiclesTable.php  "Class rate" ≠ a decision made here.
+│   │       │                                 "Photos" has three states, because
+│   │       │                                 borrowing the class gallery looks
+│   │       │                                 finished and is the case to find.
 │   │       │
 │   │       └── Refunds/                  ★   READ-ONLY, and for stronger reasons
 │   │           │                             than bookings: the amount is locked,
@@ -354,11 +360,20 @@ carhire/
 │           │                                 renders its own error, not just
 │           │                                 `dates` — a hand-altered URL can
 │           │                                 fail branch/pickup/dropoff too.
-│           └── vehicle-card.blade.php    ★   Built to work WITHOUT a
-│                                             photograph. Silhouette fallback;
-│                                             §6 deposit shown here because it
-│                                             must never first appear at the
-│                                             counter.
+│           ├── vehicle-card.blade.php    ★   Built to work WITHOUT a
+│           │                                 photograph. §6 deposit shown here
+│           │                                 because it must never first appear
+│           │                                 at the counter. Resolves its
+│           │                                 picture through the VEHICLE, so a
+│           │                                 search result shows the actual car.
+│           └── vehicle-image.blade.php   ★   The ONLY copy of "photograph if
+│                                             there is one, illustration if not".
+│                                             Was pasted into four views and
+│                                             drifted; the home page rendered a
+│                                             different empty state from the
+│                                             other three and read as broken.
+│                                             The caller owns the sized box, this
+│                                             owns what goes in it.
 │
 ├── config/
 │   ├── carhire.php                            Timezone, currency, phone region,

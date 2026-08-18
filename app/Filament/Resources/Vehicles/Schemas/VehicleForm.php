@@ -7,6 +7,7 @@ namespace App\Filament\Resources\Vehicles\Schemas;
 use App\Enums\StaffPermission;
 use App\Enums\VehicleStatus;
 use App\Models\Operator;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -37,6 +38,16 @@ use Filament\Schemas\Schema;
  * would be undone through a side door — so both fields are disabled without
  * `fleet.manage`, and disabled fields are not dehydrated, so a submit from a
  * manager cannot clear an override either.
+ *
+ * PHOTOGRAPHS ARE NOT ONE OF THOSE FIELDS
+ *
+ * `image_paths` is a nullable vehicle-level override of the class gallery, so
+ * it has the same SHAPE as the two money fields and none of their danger. Empty
+ * inherits; there is no cast that turns empty into a damaging value; and
+ * nothing about it is a pricing decision. It therefore sits under
+ * `fleet.manage-vehicles` with the rest of this form — which is also where it
+ * belongs practically, since the person who can photograph a car is the manager
+ * of the branch it is parked at.
  */
 final class VehicleForm
 {
@@ -113,6 +124,36 @@ final class VehicleForm
                             'hybrid' => 'Hybrid',
                             'electric' => 'Electric',
                         ]),
+                ]),
+
+            Section::make('Photographs')
+                ->description('Pictures of THIS car. Leave empty and it shows its class\'s photographs instead — customers are told when that is what they are looking at.')
+                ->schema([
+                    FileUpload::make('image_paths')
+                        ->label('Images')
+                        ->image()
+                        ->multiple()
+                        ->reorderable()
+                        ->appendFiles()
+                        ->imageEditor()
+                        // A directory of its own so a vehicle's photographs are
+                        // never confused with a class's on disk — the two are
+                        // deleted, replaced and audited on different schedules.
+                        ->directory('vehicles')
+                        // The public disk: these are shown to anonymous
+                        // visitors in search results. Requires
+                        // `php artisan storage:link` once per environment.
+                        ->disk('public')
+                        ->maxFiles(6)
+                        // 4 MB. `.user.ini` raises PHP's own limit to 8 MB so
+                        // an oversized phone photograph meets this message
+                        // rather than a raw nginx 413.
+                        ->maxSize(4096)
+                        ->helperText(
+                            'The first image is the one used on cards. Drag to reorder. '
+                            .'A photograph of the actual car is the single biggest thing that makes a '
+                            .'customer trust a booking — they are hiring this registration, not one like it.'
+                        ),
                 ]),
 
             Section::make('Where it lives, and whether it is on the road')

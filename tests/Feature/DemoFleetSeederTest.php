@@ -70,9 +70,14 @@ final class DemoFleetSeederTest extends TestCase
     /**
      * Re-running must not duplicate anything, and — the reason this is tested
      * rather than assumed — must not overwrite an edit somebody made in the
-     * panel. Photographs live in `image_paths` on the class, so a seeder that
-     * updated rather than created would silently discard an operator's
-     * uploads on the next `db:seed`.
+     * panel. Photographs live in `image_paths` on BOTH the class and the
+     * vehicle, so a seeder that updated rather than created would silently
+     * discard an operator's uploads on the next `db:seed`.
+     *
+     * The vehicle half matters more than the class half, because there is more
+     * of it: photographing eighteen cars is eighteen sessions of somebody's
+     * work, and losing it would look like nothing at all — the site simply
+     * falls back to the class pictures and carries on.
      */
     public function test_reseeding_neither_duplicates_nor_overwrites_panel_edits(): void
     {
@@ -88,6 +93,11 @@ final class DemoFleetSeederTest extends TestCase
             'daily_rate' => '999.00',
         ])->save();
 
+        $car = Vehicle::query()->firstOrFail();
+        $car->forceFill([
+            'image_paths' => ['vehicles/operator-upload.jpg'],
+        ])->save();
+
         $this->seed(DemoFleetSeeder::class);
 
         $this->assertSame($classes, VehicleClass::query()->count());
@@ -97,6 +107,8 @@ final class DemoFleetSeederTest extends TestCase
 
         $this->assertSame(['vehicle-classes/operator-upload.jpg'], $economy->image_paths);
         $this->assertSame('999.00', $economy->daily_rate);
+
+        $this->assertSame(['vehicles/operator-upload.jpg'], $car->refresh()->ownImagePaths());
     }
 
     /**
