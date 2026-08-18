@@ -53,6 +53,28 @@ env_value() {
 DB_NAME="$(env_value DB_DATABASE)"
 DB_USER="$(env_value DB_USERNAME)"
 DB_PASS="$(env_value DB_PASSWORD)"
+DB_HOST="$(env_value DB_HOST)"
+DB_PORT="$(env_value DB_PORT)"
+
+# ⚠ THE HOST IS NOT OPTIONAL, AND OMITTING IT LOOKS LIKE A PASSWORD FAULT
+#
+# Given no --host, the MySQL client libraries default to `localhost`, which on
+# Unix means a UNIX SOCKET rather than TCP — and the server then matches the
+# account row `user@localhost`. The 20i database user is granted as `user@%`,
+# and no `@localhost` row exists, so the dump failed with:
+#
+#     1045: Access denied for user 'james-8c41'@'localhost' (using password: YES)
+#
+# The password in that message is a red herring; it is correct. Only the host
+# pattern is wrong. `.env` says DB_HOST=127.0.0.1, which forces TCP and matches
+# `@%` — so the fix is simply to pass what the application already uses.
+#
+# This was found on 2026-08-17, and it means the backup step had NEVER
+# succeeded: every deploy.sh run aborted here, correctly refusing to migrate
+# without a dump. Nothing was ever silently skipped, but nothing was ever backed
+# up either, and ~/backups was empty while DEPLOYMENT.md assumed otherwise.
+[ -n "$DB_HOST" ] || DB_HOST=127.0.0.1
+[ -n "$DB_PORT" ] || DB_PORT=3306
 
 [ -n "$DB_NAME" ] || fail 'DB_DATABASE is empty in .env'
 
@@ -66,9 +88,15 @@ mkdir -p "$HOME/backups"
 BACKUP="$HOME/backups/${DB_NAME}-$(date +%Y%m%d-%H%M%S).sql"
 
 if command -v mysqldump >/dev/null 2>&1; then
-    mysqldump --user="$DB_USER" --password="$DB_PASS" --single-transaction \
-        --routines --triggers "$DB_NAME" > "$BACKUP" 2>/dev/null \
-        || fail "mysqldump failed. Refusing to migrate without a backup."
+    # stderr is NOT discarded. It was, and it turned a one-line host problem
+    # into a guessing game: the script reported only "mysqldump failed" while
+    # the server was saying exactly what was wrong. A backup step that hides
+    # why it could not take a backup is worse than no message at all.
+    if ! mysqldump --host="$DB_HOST" --port="$DB_PORT" \
+        --user="$DB_USER" --password="$DB_PASS" --single-transaction \
+        --routines --triggers "$DB_NAME" > "$BACKUP"; then
+        fail "mysqldump failed (see the error above). Refusing to migrate without a backup."
+    fi
 
     [ -s "$BACKUP" ] || fail "Backup $BACKUP is empty. Refusing to migrate."
 

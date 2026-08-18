@@ -5,6 +5,56 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## The backup that never ran · 2026-08-17
+
+`deploy.sh` aborted at the backup step with `mysqldump failed. Refusing to
+migrate without a backup.` It was right to abort. The cause was one missing
+flag, and the consequence is worth stating plainly: **`deploy.sh` had never
+completed a run, and `~/backups` was empty.**
+
+### The fault
+
+`mysqldump` was called without `--host`. The MySQL client libraries then default
+to `localhost`, which on Unix means a **Unix socket** rather than TCP, and the
+server matches the account row `user@localhost`. The 20i database user is
+granted as `user@%` and has no `@localhost` row, so:
+
+```
+1045: Access denied for user 'james-8c41'@'localhost' (using password: YES)
+```
+
+The password in that message is correct and irrelevant. `.env` already carries
+`DB_HOST=127.0.0.1`, which forces TCP and matches `@%` — the script simply never
+passed the application's own host to the dump. It now reads `DB_HOST` and
+`DB_PORT` alongside the other credentials, defaulting to `127.0.0.1:3306`.
+
+### What actually hid it
+
+`2>/dev/null` on the `mysqldump` call. The script reported "mysqldump failed"
+while the server was saying exactly what was wrong, one line away. **A backup
+step that hides why it could not take a backup is worse than one with no message
+at all** — it converts a one-line fix into a guessing game, and the guesses were
+plausible enough to be dangerous (the missing `TRIGGER` privilege was the
+leading hypothesis, and it was wrong). stderr is now shown.
+
+### ⚠ What follows from it
+
+- **No release had ever been backed up.** Nothing was silently skipped — the
+  guard worked correctly every time and refused to migrate — but DEPLOYMENT.md's
+  release procedure assumed a dump existed, and none did.
+- **Whatever put `8593bb8` on the server, it was not this script**, which is why
+  production sat one commit behind master.
+- The `--triggers` flag is kept. There are no triggers to dump today because the
+  privilege is absent, and the flag is what preserves them the day it is granted.
+
+### Note for the next run
+
+`deploy.sh` updates itself at step 1, and bash has already read the old file into
+memory. **`git pull` on the server by hand before running it**, or the first run
+after this change executes the previous version and fails identically.
+
+---
+
 ## Photographs of the actual car · 2026-08-17
 
 Reverses the Phase 5 decision that photographs belong to a class rather than to
