@@ -5,13 +5,12 @@
 @php
     $zone = config('carhire.display_timezone');
 
-    // This car's own photographs when it has any, its class's otherwise.
-    // `$ownPhotographs` decides what the page is allowed to CLAIM about them:
-    // this is the screen where somebody commits money, so a picture of a
-    // different car must say so rather than be left to imply otherwise.
+    // THIS car's photographs, or none. Class photographs are a home-page thing
+    // now — see Vehicle::imagePaths(). So anything rendered here is genuinely
+    // the vehicle being booked, and the page no longer needs a caption
+    // explaining that its pictures are of something else.
     $images = $vehicle->imagePaths();
-    $ownPhotographs = $vehicle->hasOwnImages();
-    $imageAlt = $ownPhotographs ? $vehicle->displayName() : $class->name;
+    $imageAlt = $vehicle->displayName();
 
     $money = fn (string $amount): string => $quote->currency.' '.number_format((float) $amount, 2);
 @endphp
@@ -56,54 +55,77 @@
                                      width="960" height="600"
                                      imgClass="aspect-[16/10] w-full object-cover"
                                      panelClass="aspect-[16/10] w-full"
-                                     glyphClass="w-1/3" />
+                                     glyphClass="w-1/3"
+                                     data-gallery-hero />
                 </div>
 
-                {{-- Said plainly rather than left to be assumed.
+                {{-- There is no longer a "these photographs are of a different
+                     car" caption here, and that is the point rather than an
+                     omission.
 
-                     The whole reason vehicles carry their own photographs is
-                     that a customer hiring a specific registration cannot
-                     verify a picture of a different car — and cannot trust it.
-                     Falling back to the class gallery is still better than an
-                     empty frame, but presenting somebody else's Corolla in
-                     silence is precisely the misrepresentation being fixed.
-                     So the page states which it is, on the screen where money
-                     is about to be committed. --}}
-                @if ($images !== [] && ! $ownPhotographs)
-                    <p class="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-ink-500">
-                        <svg aria-hidden="true" class="mt-0.5 size-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                        </svg>
-                        {{-- "another vehicle in the X range" rather than
-                             "a X vehicle", because no article fits every class
-                             name: "a Economy" and "an SUV" cannot both come out
-                             of one template, and the seeded fleet contains both
-                             shapes. This phrasing needs no article at all.
+                     It existed because the page could fall back to the class
+                     gallery. Removing that fallback removed the thing the
+                     caption apologised for: every photograph on this page is
+                     now of this registration, and a car with none shows the
+                     illustrated silhouette, which nobody can mistake for a
+                     photograph. A page that does not show the wrong thing beats
+                     a page that explains why it is showing the wrong thing. --}}
 
-                             It also no longer repeats what the customer is
-                             booking. It said so, and the subtitle immediately
-                             below hedged the same fact — two lines, each
-                             defensible alone, telling the reader opposite
-                             things. Same failure as the Phase 5 confirmation
-                             screen. The identity of the car belongs in one
-                             place, and this sentence is only about the
-                             photographs. --}}
-                        <span>
-                            Photographs show another vehicle in the {{ $class->name }} range, not this exact car.
-                        </span>
-                    </p>
-                @endif
+                {{-- The rest of the gallery.
+                     ─────────────────────────────────────────────────────────
+                     THREE FAULTS FIXED HERE, all reported by the operator as
+                     "no option to scroll the vehicle images".
 
-                {{-- The rest of the gallery, when there is one. --}}
+                     1. The thumbnails were plain <img> inside <li>. Nothing was
+                        clickable, so an uploaded photograph could be seen at
+                        80px and never any larger. They are <button>s now and
+                        they swap the hero.
+                     2. `array_slice($images, 1, 4)` capped the strip at four.
+                        The upload allows SIX, so the sixth was rendered
+                        nowhere at all — uploaded, stored, paid for in
+                        somebody's time, and invisible.
+                     3. A four-column grid cannot scroll. On a phone six
+                        thumbnails in four columns wrap into a second row that
+                        pushes the price below the fold. A single overflow-x
+                        row scrolls on a phone and fits on a desktop.
+
+                     EVERY image is listed, including the first, so the strip
+                     is the complete set and the hero is simply whichever is
+                     selected. A strip that silently omits the picture you are
+                     looking at makes the count wrong and the selection state
+                     meaningless.
+
+                     Without JavaScript nothing is lost: every photograph is
+                     still on the page and still visible, just not enlargeable.
+                     Same progressive-enhancement rule as the copy button. --}}
                 @if (count($images) > 1)
-                    <ul class="mt-3 grid grid-cols-4 gap-3">
-                        @foreach (array_slice($images, 1, 4) as $path)
-                            <li class="overflow-hidden rounded-xl border border-ink-200">
-                                <img src="{{ Storage::disk('public')->url($path) }}"
-                                     alt=""
-                                     loading="lazy"
-                                     width="240" height="160"
-                                     class="aspect-[3/2] w-full object-cover">
+                    {{-- `data-gallery-strip`, not `data-gallery-thumbs`. The
+                         container and the buttons must not differ by a single
+                         trailing character: `data-gallery-thumb` is a strict
+                         PREFIX of `data-gallery-thumbs`, so any grep, count or
+                         substring match over the markup silently includes the
+                         container as though it were a seventh thumbnail. It
+                         did exactly that in the test for this feature. --}}
+                    <ul class="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1" data-gallery-strip>
+                        @foreach ($images as $index => $path)
+                            <li class="shrink-0 snap-start">
+                                {{-- A button, not a div: this is a control, so
+                                     it must be reachable by keyboard and
+                                     announce itself. `aria-current` carries the
+                                     selected state for both the styling and the
+                                     screen reader, rather than a class that
+                                     only one of them can see. --}}
+                                <button type="button"
+                                        data-gallery-thumb
+                                        data-full="{{ Storage::disk('public')->url($path) }}"
+                                        @if ($index === 0) aria-current="true" @endif
+                                        class="block cursor-pointer overflow-hidden rounded-xl border-2 border-ink-200 transition-colors duration-150 hover:border-brand-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700 aria-[current=true]:border-brand-600">
+                                    <img src="{{ Storage::disk('public')->url($path) }}"
+                                         alt="Photograph {{ $index + 1 }} of {{ count($images) }}"
+                                         loading="lazy"
+                                         width="240" height="160"
+                                         class="aspect-[3/2] w-20 object-cover sm:w-24">
+                                </button>
                             </li>
                         @endforeach
                     </ul>

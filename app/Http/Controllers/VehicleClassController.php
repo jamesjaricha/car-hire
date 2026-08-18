@@ -73,15 +73,8 @@ final class VehicleClassController extends Controller
             throw new NotFoundHttpException;
         }
 
-        // `vehicleClass` is eager-loaded for the image fallback, not for the
-        // page's own data — every card resolves its photograph through
-        // `Vehicle::imagePaths()`, which reaches back to the class when the car
-        // has none of its own. `Model::shouldBeStrict()` turns a missed
-        // eager-load into an exception outside production rather than a silent
-        // N+1, so this line is load-bearing on the class page in particular:
-        // it is the one screen that renders every vehicle in a class at once.
         $vehicles = Vehicle::query()
-            ->with(['branch', 'vehicleClass'])
+            ->with('branch')
             ->bookable()
             ->where('vehicle_class_id', $class->getKey())
             ->orderBy('registration')

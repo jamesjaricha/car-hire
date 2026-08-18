@@ -43,7 +43,13 @@
 | again.
 --}}
 @if ($path)
-    <img src="{{ Storage::disk('public')->url($path) }}"
+    {{-- `$attributes` carries anything the caller passed beyond the declared
+         props — the vehicle page uses it for `data-gallery-hero`, so the
+         gallery can swap this image's source without a second copy of the
+         markup existing purely to be targetable. Declared props are stripped
+         out by @props, so `class` never arrives here twice. --}}
+    <img {{ $attributes }}
+         src="{{ Storage::disk('public')->url($path) }}"
          alt="{{ $alt }}"
          loading="{{ $loading }}"
          {{-- Dimensions reserve the space so the layout does not jump when the

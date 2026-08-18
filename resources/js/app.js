@@ -12,6 +12,52 @@
 | Progressive enhancement: without JavaScript the reference is still visible
 | and selectable, so nothing is lost — only convenience is added.
 */
+/*
+| Vehicle photograph gallery
+|--------------------------------------------------------------------------
+|
+| Clicking a thumbnail swaps the hero image. Delegated from the document for
+| the same reasons as the copy handler below: one listener, and it survives
+| markup that renders after load.
+|
+| Progressive enhancement, and it genuinely is here — without JavaScript every
+| photograph is still on the page in the thumbnail strip, which scrolls. This
+| only makes them enlargeable. Nothing is hidden behind the script.
+|
+| The selected state lives in `aria-current`, not in a class. Tailwind styles
+| it with `aria-[current=true]:` and a screen reader reads it, so the two
+| cannot disagree about which photograph is showing.
+*/
+document.addEventListener('click', (event) => {
+    const thumb = event.target.closest('[data-gallery-thumb]');
+
+    if (! thumb) {
+        return;
+    }
+
+    const hero = document.querySelector('[data-gallery-hero]');
+
+    if (! hero) {
+        return;
+    }
+
+    hero.src = thumb.dataset.full;
+
+    // Scoped to this strip rather than the document: a page with two galleries
+    // would otherwise clear the selection on both.
+    //
+    // `data-gallery-strip` rather than `data-gallery-thumbs` deliberately —
+    // see the view. A container name that is the button name plus one letter
+    // makes every substring search over the markup wrong.
+    const strip = thumb.closest('[data-gallery-strip]');
+
+    strip?.querySelectorAll('[data-gallery-thumb]').forEach((other) => {
+        other.removeAttribute('aria-current');
+    });
+
+    thumb.setAttribute('aria-current', 'true');
+});
+
 document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-copy]');
 

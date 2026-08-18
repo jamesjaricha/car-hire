@@ -28,13 +28,6 @@ final class VehiclesTable
     {
         return $table
             ->defaultSort('registration')
-            // The Photos column asks whether a vehicle is falling back to its
-            // class's gallery, which means reading the relation. Filament would
-            // eager-load it anyway for the `vehicleClass.name` column, but that
-            // is a coincidence rather than a guarantee — deleting that column
-            // would turn this into a strict-mode exception on a screen nobody
-            // was editing.
-            ->modifyQueryUsing(fn (EloquentBuilder $query): EloquentBuilder => $query->with('vehicleClass'))
             ->columns([
                 TextColumn::make('registration')
                     ->label('Registration')
@@ -67,30 +60,25 @@ final class VehiclesTable
                     ->placeholder('—'),
 
                 // Never `danger`, matching the same column on Vehicle classes.
-                // A car with no photograph of its own still sells — it shows
-                // its class's pictures, or the illustration. That is a
-                // presentation gap, and giving it the red the Sellable column
-                // needs would flatten "this cannot be booked" into "this could
-                // look better".
+                // A car with no photograph still sells — it shows the
+                // illustration — so this is a presentation gap, and giving it
+                // the red the Sellable column needs would flatten "this cannot
+                // be booked" into "this could look better".
                 //
-                // Three states rather than two, because "borrowing the class
-                // gallery" is the case worth finding. It looks finished to
-                // anybody scanning the site and is precisely the thing
-                // per-vehicle photographs were added to stop.
+                // Two states, not three. It briefly distinguished "borrowing
+                // its class's pictures", which stopped existing on 2026-08-18
+                // when class photographs became a home-page-only thing. A car
+                // now has its own photographs or it has none.
                 TextColumn::make('image_paths')
                     ->label('Photos')
                     ->badge()
-                    ->state(fn (Vehicle $record): string => match (true) {
-                        $record->hasOwnImages() => (string) count($record->ownImagePaths()),
-                        $record->vehicleClass?->hasImages() ?? false => 'Class photos',
-                        default => 'None',
-                    })
+                    ->state(fn (Vehicle $record): string => $record->hasOwnImages()
+                        ? (string) count($record->ownImagePaths())
+                        : 'None')
                     ->color(fn (Vehicle $record): string => $record->hasOwnImages() ? 'success' : 'warning')
-                    ->tooltip(fn (Vehicle $record): ?string => match (true) {
-                        $record->hasOwnImages() => null,
-                        $record->vehicleClass?->hasImages() ?? false => 'Customers see photographs of a different car in this class, labelled as such.',
-                        default => 'Customers see an illustration. Neither this vehicle nor its class has been photographed.',
-                    }),
+                    ->tooltip(fn (Vehicle $record): ?string => $record->hasOwnImages()
+                        ? null
+                        : 'Customers see an illustration rather than this car. Its class photographs are not used here.'),
 
                 // An override is the exception, so the ordinary case says so
                 // plainly rather than repeating the class figure as though it

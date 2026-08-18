@@ -4,7 +4,8 @@
 @section('description', 'Every '.$class->name.' in our fleet. Prices include the mandatory damage waiver, and the refundable deposit is shown before you pay.')
 
 @php
-    $images = $class->imagePaths();
+    // No $images here any more. The class gallery belongs to the home page;
+    // this page shows the individual cars and their own photographs.
     $money = fn (string|null $amount): string => 'ZMW '.number_format((float) ($amount ?? '0'), 2);
 @endphp
 
@@ -92,19 +93,17 @@
             </p>
         </div>
 
-        {{-- ── Photographs ──────────────────────────────────────────────────── --}}
-        @if ($images !== [])
-            <ul class="mt-8 grid gap-3 sm:grid-cols-3">
-                @foreach (array_slice($images, 0, 3) as $path)
-                    <li class="overflow-hidden rounded-2xl border border-ink-200">
-                        <img src="{{ Storage::disk('public')->url($path) }}"
-                             alt="{{ $class->name }}"
-                             loading="lazy" width="480" height="320"
-                             class="aspect-[3/2] w-full object-cover">
-                    </li>
-                @endforeach
-            </ul>
-        @endif
+        {{-- The class photograph strip that used to sit here is gone,
+             deliberately.
+
+             Class photographs are a HOME PAGE thing: there, a card stands for a
+             whole range and a representative picture is honest. Here the page
+             is about to list the actual cars, each with its own photograph — so
+             a range shot above them was showing a customer a vehicle that may
+             not be any of the ones below it, immediately before showing them
+             the ones that are. The operator's instruction, 2026-08-18: keep it
+             on the home page, drop it from the sub-pages, "since the cars have
+             their own images". --}}
 
         {{-- ── The cars ─────────────────────────────────────────────────────── --}}
         <div class="mt-10 flex flex-wrap items-baseline justify-between gap-2">
@@ -168,7 +167,7 @@
                                  the class gallery, then the silhouette. --}}
                             <div class="relative aspect-[16/10] overflow-hidden bg-ink-100">
                                 <x-vehicle-image :path="$vehicle->primaryImagePath()"
-                                                 :alt="$vehicle->hasOwnImages() ? $vehicle->displayName() : $class->name"
+                                                 :alt="$vehicle->displayName()"
                                                  width="480" height="300"
                                                  imgClass="absolute inset-0 size-full object-cover [transition:transform_300ms_var(--ease-out-strong)] group-hover:scale-105"
                                                  panelClass="absolute inset-0"

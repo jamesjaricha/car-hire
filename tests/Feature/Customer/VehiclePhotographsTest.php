@@ -13,7 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Photographs of the actual car, and the honesty about it when there are none.
+ * Photographs of the actual car, and an honest gap where there is none.
  *
  * WHY THIS EXISTS
  *
@@ -21,18 +21,23 @@ use Tests\TestCase;
  * with four Corollas photographs the Corolla once. That is true of his effort
  * and false of the customer's decision: this platform locks a SPECIFIC vehicle
  * row, so somebody is hiring a particular registration, and two cars in one
- * class differ in colour, age and condition. The operator's own verdict on
- * showing a stand-in was that it "looks like a scam website".
+ * class differ in colour, age and condition. The operator's verdict on showing
+ * a stand-in was that it "looks like a scam website".
  *
- * The assertions that earn their place are not about images rendering. They are
- * about the platform never CLAIMING a picture is of a car it is not:
+ * THE RULE, after the operator tightened it on 2026-08-18
  *
- *  - own photographs replace the class gallery rather than joining it, so a
- *    customer never sees this car and another car side by side, unlabelled;
- *  - the vehicle page states plainly when it is showing a class photograph,
- *    because that is the screen where money gets committed;
- *  - the admin worklist counts an inherited gallery as MISSING, since a car
- *    borrowing its class's pictures is exactly what this work exists to find.
+ * A class photograph appears on the HOME PAGE and nowhere else, because a home
+ * page card stands for a range rather than a car. Everywhere a specific vehicle
+ * is shown — search results, the class page's car list, the vehicle page — it is
+ * that car's own photograph or the illustrated silhouette. Nothing in between.
+ *
+ * There was briefly a fallback to the class gallery with a caption admitting the
+ * pictures were of a different car. It is gone: a page that does not show the
+ * wrong thing beats a page that explains why it is showing the wrong thing.
+ *
+ * So most of what is asserted below is ABSENCE — that a class photograph cannot
+ * reach a screen about one car, and that an unphotographed car says so by
+ * drawing something obviously not a photograph.
  */
 final class VehiclePhotographsTest extends TestCase
 {
@@ -51,55 +56,31 @@ final class VehiclePhotographsTest extends TestCase
         $this->seed(SettingsSeeder::class);
     }
 
-    // --- The fallback chain -------------------------------------------------
+    // --- What a vehicle's gallery resolves to -------------------------------
 
     public function test_a_vehicle_with_its_own_photographs_uses_them(): void
     {
         [, $class] = $this->fleet();
 
-        $vehicle = $this->vehicle($class, [
-            'image_paths' => [self::CAR_PHOTO],
-        ]);
+        $vehicle = $this->vehicle($class, ['image_paths' => [self::CAR_PHOTO]]);
 
         $this->assertTrue($vehicle->hasOwnImages());
         $this->assertSame(self::CAR_PHOTO, $vehicle->primaryImagePath());
     }
 
-    public function test_a_vehicle_without_photographs_falls_back_to_its_class(): void
+    /**
+     * THE ONE THAT MATTERS FOR TRUST. A car with no photograph of its own must
+     * not quietly borrow one from a different car in the same class.
+     */
+    public function test_a_vehicle_never_borrows_its_classs_photographs(): void
     {
         [, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
 
         $vehicle = $this->vehicle($class);
 
         $this->assertFalse($vehicle->hasOwnImages());
-        $this->assertSame(self::CLASS_PHOTO, $vehicle->primaryImagePath());
-    }
-
-    /**
-     * THE ONE THAT MATTERS FOR TRUST.
-     *
-     * If own photographs were merged with the class gallery, a customer would
-     * be shown this car and somebody else's car in the same strip, with nothing
-     * saying which was which — a worse misrepresentation than the class-only
-     * gallery this replaced, because it looks specific.
-     */
-    public function test_own_photographs_replace_the_class_gallery_rather_than_joining_it(): void
-    {
-        [, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
-
-        $vehicle = $this->vehicle($class, [
-            'image_paths' => [self::CAR_PHOTO],
-        ]);
-
-        $this->assertSame([self::CAR_PHOTO], $vehicle->imagePaths());
-        $this->assertNotContains(self::CLASS_PHOTO, $vehicle->imagePaths());
-    }
-
-    public function test_a_vehicle_with_no_photographs_anywhere_has_none(): void
-    {
-        [, $class] = $this->fleet();
-
-        $this->assertNull($this->vehicle($class)->primaryImagePath());
+        $this->assertNull($vehicle->primaryImagePath());
+        $this->assertSame([], $vehicle->imagePaths());
     }
 
     /**
@@ -114,22 +95,23 @@ final class VehiclePhotographsTest extends TestCase
         $vehicle = $this->vehicle($class, ['image_paths' => []]);
 
         $this->assertFalse($vehicle->hasOwnImages());
-        // Still inherits, because empty means inherit rather than "none".
-        $this->assertSame(self::CLASS_PHOTO, $vehicle->primaryImagePath());
+        $this->assertNull($vehicle->primaryImagePath());
+    }
+
+    public function test_a_vehicle_with_no_photographs_anywhere_has_none(): void
+    {
+        [, $class] = $this->fleet();
+
+        $this->assertNull($this->vehicle($class)->primaryImagePath());
     }
 
     // --- The admin worklist -------------------------------------------------
 
-    /**
-     * A car inheriting its class's pictures LOOKS finished on the site and is
-     * precisely the case this queue exists to surface. Counting it as done
-     * would empty the list exactly where the work is.
-     */
-    public function test_the_worklist_includes_a_vehicle_that_is_only_borrowing_class_photographs(): void
+    public function test_the_worklist_finds_vehicles_without_their_own_photographs(): void
     {
         [, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
 
-        $borrowing = $this->vehicle($class, ['registration' => 'BOR 001']);
+        $none = $this->vehicle($class, ['registration' => 'NON 001']);
         $emptied = $this->vehicle($class, ['registration' => 'EMP 001', 'image_paths' => []]);
         $photographed = $this->vehicle($class, [
             'registration' => 'OWN 001',
@@ -138,12 +120,12 @@ final class VehiclePhotographsTest extends TestCase
 
         $awaiting = Vehicle::query()->withoutImages()->pluck('registration')->all();
 
-        $this->assertContains($borrowing->registration, $awaiting);
+        $this->assertContains($none->registration, $awaiting);
         $this->assertContains($emptied->registration, $awaiting);
         $this->assertNotContains($photographed->registration, $awaiting);
     }
 
-    // --- What the customer sees ---------------------------------------------
+    // --- Search results -----------------------------------------------------
 
     public function test_a_search_result_shows_the_cars_own_photograph(): void
     {
@@ -160,11 +142,27 @@ final class VehiclePhotographsTest extends TestCase
     }
 
     /**
+     * The absence that matters: an unphotographed car draws the silhouette
+     * rather than reaching for its class's picture.
+     */
+    public function test_an_unphotographed_car_shows_the_illustration_not_a_class_photograph(): void
+    {
+        [$branch, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
+
+        $this->vehicle($class);
+
+        $content = $this->get($this->searchUrl($branch))
+            ->assertSuccessful()
+            ->getContent();
+
+        $this->assertStringNotContainsString(self::CLASS_PHOTO, $content);
+        $this->assertStringContainsString('from-brand-50 to-brand-100', $content);
+    }
+
+    /**
      * "Or similar" is the hire trade's standard hedge and it was harmless while
      * every card carried a class photograph. Printed under a picture of THIS
-     * car it contradicts the picture — the customer is shown a specific Corolla
-     * and told in the next line they may get a different one, which spends the
-     * trust the photograph was added to earn.
+     * car it contradicts the picture.
      */
     public function test_a_card_showing_this_car_does_not_hedge_with_or_similar(): void
     {
@@ -178,12 +176,12 @@ final class VehiclePhotographsTest extends TestCase
     }
 
     /**
-     * And the other direction, which is the half that keeps it honest: when the
-     * picture IS a stand-in, the hedge belongs there.
+     * And the other direction, which is the half that keeps it honest: with no
+     * photograph of the car, the hedge belongs there.
      */
-    public function test_a_card_showing_a_stand_in_photograph_still_hedges(): void
+    public function test_a_card_for_an_unphotographed_car_still_hedges(): void
     {
-        [$branch, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
+        [$branch, $class] = $this->fleet();
 
         $this->vehicle($class);
 
@@ -191,6 +189,8 @@ final class VehiclePhotographsTest extends TestCase
             ->assertSuccessful()
             ->assertSee('or similar');
     }
+
+    // --- The class page -----------------------------------------------------
 
     public function test_the_class_page_shows_each_cars_own_photograph(): void
     {
@@ -215,11 +215,27 @@ final class VehiclePhotographsTest extends TestCase
     }
 
     /**
-     * The home page cards are RANGES, not cars. One card stands for every
-     * Corolla the operator has, so putting a specific registration's photograph
-     * on it would be the same misrepresentation in the opposite direction.
+     * The class gallery strip used to sit above this list. Showing a range shot
+     * immediately before showing the actual cars invited the customer to assume
+     * it was one of them.
      */
-    public function test_the_home_page_shows_the_class_photograph_not_a_particular_car(): void
+    public function test_the_class_page_no_longer_shows_the_class_gallery(): void
+    {
+        [, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
+
+        $this->vehicle($class);
+
+        $this->get(route('classes.show', ['slug' => $class->slug]))
+            ->assertSuccessful()
+            ->assertDontSee(self::CLASS_PHOTO, escape: false);
+    }
+
+    /**
+     * The home page cards are RANGES, not cars — one card stands for every
+     * Corolla the operator has — so this is the one place a class photograph is
+     * honest, and it must keep working.
+     */
+    public function test_the_home_page_still_shows_the_class_photograph(): void
     {
         [, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
 
@@ -231,28 +247,7 @@ final class VehiclePhotographsTest extends TestCase
         $this->assertStringNotContainsString(self::CAR_PHOTO, $content);
     }
 
-    // --- The disclosure -----------------------------------------------------
-
-    /**
-     * Showing a class photograph is better than an empty frame. Showing one
-     * SILENTLY, on the page carrying the price and the Reserve button, is the
-     * misrepresentation this whole slice exists to remove.
-     */
-    public function test_the_vehicle_page_says_when_the_photographs_are_not_of_this_car(): void
-    {
-        [$branch, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
-
-        $vehicle = $this->vehicle($class, ['make' => 'Toyota', 'model' => 'Corolla']);
-
-        $this->get($this->vehicleUrl($vehicle))
-            ->assertSuccessful()
-            // The whole phrase, not just the tail. An earlier wording read
-            // "Photographs show a Economy vehicle" — no single article can
-            // serve both "Economy" and "SUV", and the seeded fleet has both.
-            // This construction needs no article, and asserting it in full is
-            // what would catch a reintroduced one.
-            ->assertSee('another vehicle in the Economy range, not this exact car', escape: false);
-    }
+    // --- The vehicle page ---------------------------------------------------
 
     /**
      * The page promises under "What is included" that a specific vehicle is
@@ -277,38 +272,86 @@ final class VehiclePhotographsTest extends TestCase
         $this->get($this->vehicleUrl($vehicle))
             ->assertSuccessful()
             ->assertDontSee('or similar')
-            // The colour shows whether or not there is a photograph — with a
-            // stand-in picture it is the only thing saying what will be
-            // collected.
+            // The colour shows whether or not there is a photograph — with no
+            // picture it is the only thing saying what will be collected.
             ->assertSee('Toyota Corolla', escape: false)
             ->assertSee('white', escape: false);
     }
 
-    public function test_the_vehicle_page_makes_no_such_disclaimer_about_its_own_photographs(): void
+    public function test_the_vehicle_page_never_shows_a_class_photograph(): void
     {
         [, $class] = $this->fleet(['image_paths' => [self::CLASS_PHOTO]]);
-
-        $vehicle = $this->vehicle($class, ['image_paths' => [self::CAR_PHOTO]]);
-
-        $this->get($this->vehicleUrl($vehicle))
-            ->assertSuccessful()
-            ->assertDontSee('not this exact car', escape: false);
-    }
-
-    /**
-     * With nothing to disclaim there is nothing to say — the illustration is
-     * self-evidently a drawing, and a warning beside it would be noise.
-     */
-    public function test_a_vehicle_with_no_photographs_renders_the_illustration_without_a_disclaimer(): void
-    {
-        [, $class] = $this->fleet();
 
         $vehicle = $this->vehicle($class);
 
         $response = $this->get($this->vehicleUrl($vehicle))->assertSuccessful();
 
+        $response->assertDontSee(self::CLASS_PHOTO, escape: false);
         $this->assertStringContainsString('from-brand-50 to-brand-100', $response->getContent());
-        $response->assertDontSee('not this exact car', escape: false);
+    }
+
+    // --- The gallery --------------------------------------------------------
+
+    /**
+     * EVERY uploaded photograph must be reachable.
+     *
+     * REGRESSION, reported by the operator as "no option to scroll the vehicle
+     * images". The strip was built from `array_slice($images, 1, 4)` — so with
+     * the six-image maximum the form allows, the sixth was rendered nowhere at
+     * all. Uploaded, stored, and invisible. The thumbnails were also plain
+     * `<img>` elements, so nothing could be enlarged.
+     *
+     * Asserted against `maxFiles(6)` deliberately: if that cap is ever raised,
+     * this fails and the strip gets looked at rather than silently truncating
+     * again.
+     */
+    public function test_every_photograph_appears_in_the_gallery_and_can_be_selected(): void
+    {
+        [, $class] = $this->fleet();
+
+        $paths = [];
+
+        for ($i = 1; $i <= 6; $i++) {
+            $paths[] = "vehicles/car-{$i}.jpg";
+        }
+
+        $vehicle = $this->vehicle($class, ['image_paths' => $paths]);
+
+        $content = $this->get($this->vehicleUrl($vehicle))
+            ->assertSuccessful()
+            ->getContent();
+
+        foreach ($paths as $path) {
+            $this->assertStringContainsString($path, $content);
+        }
+
+        // One control per photograph, the first marked as showing. Buttons
+        // rather than divs, so the gallery is reachable by keyboard.
+        //
+        // ⚠ This count is why the container is `data-gallery-strip` and not
+        // `data-gallery-thumbs`: the latter CONTAINS `data-gallery-thumb`, so
+        // this returned 7 for six thumbnails and the assertion was measuring
+        // the container as a seventh control. Keep the two names distinct
+        // rather than relaxing the count.
+        $this->assertSame(6, substr_count($content, 'data-gallery-thumb'));
+        $this->assertStringContainsString('data-gallery-strip', $content);
+        $this->assertStringContainsString('data-gallery-hero', $content);
+        $this->assertStringContainsString('aria-current="true"', $content);
+    }
+
+    /**
+     * One photograph is not a gallery, and a strip of one control to select the
+     * thing already on screen is noise.
+     */
+    public function test_a_single_photograph_renders_no_thumbnail_strip(): void
+    {
+        [, $class] = $this->fleet();
+
+        $vehicle = $this->vehicle($class, ['image_paths' => [self::CAR_PHOTO]]);
+
+        $this->get($this->vehicleUrl($vehicle))
+            ->assertSuccessful()
+            ->assertDontSee('data-gallery-thumb', escape: false);
     }
 
     // --- Fixtures -----------------------------------------------------------

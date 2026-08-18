@@ -2,14 +2,12 @@
 
 @php
     $class = $vehicle->vehicleClass;
-    $image = $vehicle->primaryImagePath();
 
-    // An inherited photograph is described by the class, because that is what
-    // it honestly depicts — some other car in the same range. Only a
-    // photograph of THIS car may be captioned as this car.
-    $imageAlt = $vehicle->hasOwnImages()
-        ? $vehicle->displayName()
-        : ($class?->name ?? 'Vehicle');
+    // Always this car's own photograph, or the silhouette. Class pictures no
+    // longer appear here, so the alt text can name the car without qualifying
+    // it — there is nothing left for it to be wrong about.
+    $image = $vehicle->primaryImagePath();
+    $imageAlt = $vehicle->displayName();
 
     // The dates travel with the link so the detail page prices the same hire.
     // Carrying them in the URL rather than the session means the page can be
@@ -33,9 +31,10 @@
 | type and specification chips, and a photograph is an improvement layered on
 | top when one has been uploaded.
 |
-| The fallback chain is this car's own photographs, then its class's, then the
-| silhouette — resolved by `Vehicle::primaryImagePath()` and drawn by
-| `x-vehicle-image`, which is now the single owner of that markup.
+| It is this car's own photograph or the silhouette — nothing in between.
+| Class photographs are a home-page thing, where a card stands for a range
+| rather than a registration. `x-vehicle-image` is the single owner of that
+| markup.
 --}}
 <article class="rise liftable group flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm hover:shadow-lg hover:shadow-ink-900/5">
 

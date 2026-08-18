@@ -5,6 +5,70 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## A gallery you can actually open, and class photographs sent home · 2026-08-18
+
+Both from the operator using the deployed site. Neither would have been found by
+a test, because both are about what a page lets somebody *do*.
+
+### The gallery could not be opened
+
+Reported as *"no option to scroll the vehicle images"*. Three faults in one
+block:
+
+- **The thumbnails were plain `<img>` inside `<li>`.** Nothing was clickable, so
+  a photograph somebody had uploaded could be seen at 80px and never any larger.
+- **`array_slice($images, 1, 4)` capped the strip at four.** The upload allows
+  **six**, so the sixth was rendered nowhere at all — uploaded, stored, and
+  invisible.
+- **A four-column grid cannot scroll.** On a phone, six thumbnails wrapped into
+  a second row that pushed the price below the fold.
+
+Now a single horizontally scrolling strip of `<button>`s that swap the hero
+image, listing **every** photograph including the first — a strip that omits the
+one you are looking at makes its own count wrong. Selected state lives in
+`aria-current`, styled with `aria-[current=true]:` and read by screen readers, so
+the two cannot disagree. Vanilla delegated JavaScript in `app.js`, matching the
+copy button; without it every photograph is still on the page, just not
+enlargeable.
+
+`x-vehicle-image` now merges `$attributes`, so the hero is targetable without a
+second copy of its markup existing purely to be found.
+
+### Class photographs are a home-page thing now
+
+The operator's instruction: keep them on the home page, drop them from the
+sub-pages, *"since the cars have their own images"*. Two changes follow.
+
+- **`Vehicle::imagePaths()` no longer falls back to the class.** A car shows its
+  own photographs or the illustrated silhouette. Nothing in between.
+- **The class page's photograph strip is gone.** It sat directly above the list
+  of actual cars, so a range shot was inviting the customer to assume it was one
+  of the vehicles listed below it.
+
+**This deletes rather than adds.** The "Photographs show another vehicle in the
+Economy range, not this exact car" caption — written yesterday, and reasoned
+about at some length — no longer exists, because the thing it apologised for
+cannot happen. **A page that does not show the wrong thing beats a page that
+explains why it is showing the wrong thing.** The Photos column in the panel
+drops from three states to two for the same reason.
+
+Worth recording as a correction: yesterday's design kept the class fallback on
+the grounds that partial adoption should never make the site look worse. That
+optimised for how full the page looks over whether it is telling the truth,
+which is the same trade the original class-only design got wrong. The cost is
+real and accepted — a part-photographed fleet shows more silhouettes — and the
+silhouette is deliberately a drawing, so nobody mistakes it for a car.
+
+### Also
+
+- The eager-load added to `VehicleClassController` yesterday is removed: with no
+  fallback, the cards no longer reach through to `vehicleClass` at all.
+- `VehiclePhotographsTest` rewritten around absence — that a class photograph
+  cannot reach any screen about one car — plus two gallery tests, one of which
+  pins the strip against `maxFiles(6)` so raising the cap fails loudly.
+
+---
+
 ## audit_log is protected by the database again · 2026-08-17
 
 **The last item marked "blocking real launch" is closed.** 20i granted `TRIGGER`

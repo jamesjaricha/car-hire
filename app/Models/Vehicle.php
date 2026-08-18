@@ -123,32 +123,31 @@ final class Vehicle extends Model
     /**
      * The gallery a customer should see for this vehicle.
      *
-     * The fallback chain the class-level migration promised: this car's own
-     * photographs, then its class's, then nothing — at which point the view
-     * draws the illustrated silhouette. `x-vehicle-image` owns that last step
-     * so the three call sites cannot disagree about it again.
+     * THIS CAR'S OWN PHOTOGRAPHS, OR NOTHING.
      *
-     * Own photographs REPLACE the class gallery rather than being prepended to
-     * it. Mixing them would put pictures of a different car directly beside
-     * pictures of this one, with nothing on screen saying which is which —
-     * which is the exact confusion per-vehicle photographs exist to remove.
+     * It briefly fell back to the class gallery, which is what the original
+     * class-level migration anticipated. The operator removed that on
+     * 2026-08-18, and he was right: a class photograph appearing beside a
+     * specific registration is the misrepresentation this whole feature exists
+     * to remove, and softening it with a "these are not of this car" caption
+     * only made the page apologise for showing the wrong thing rather than not
+     * show it.
      *
-     * ⚠ Reaches through to `vehicleClass`. `Model::shouldBeStrict()` is on
-     * outside production, so any query feeding this into a card must
-     * eager-load that relation or it throws rather than quietly N+1ing.
-     * `AvailabilityService` and both public controllers already do.
+     * So class photographs now appear on the HOME PAGE only, where a card
+     * stands for a range rather than a car. Everywhere a specific vehicle is
+     * shown, it is that vehicle or the illustrated silhouette — and the
+     * silhouette is deliberately a drawing, so nobody can mistake it for the
+     * car either.
+     *
+     * The consequence is intentional: a fleet that is only part-photographed
+     * shows more silhouettes than it used to. An honest gap beats a
+     * plausible-looking substitute.
      *
      * @return list<string>
      */
     public function imagePaths(): array
     {
-        $own = $this->ownImagePaths();
-
-        if ($own !== []) {
-            return $own;
-        }
-
-        return $this->vehicleClass?->imagePaths() ?? [];
+        return $this->ownImagePaths();
     }
 
     public function primaryImagePath(): ?string
