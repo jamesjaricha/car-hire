@@ -74,9 +74,22 @@
                         <svg aria-hidden="true" class="mt-0.5 size-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                         </svg>
+                        {{-- "another vehicle in the X range" rather than
+                             "a X vehicle", because no article fits every class
+                             name: "a Economy" and "an SUV" cannot both come out
+                             of one template, and the seeded fleet contains both
+                             shapes. This phrasing needs no article at all.
+
+                             It also no longer repeats what the customer is
+                             booking. It said so, and the subtitle immediately
+                             below hedged the same fact — two lines, each
+                             defensible alone, telling the reader opposite
+                             things. Same failure as the Phase 5 confirmation
+                             screen. The identity of the car belongs in one
+                             place, and this sentence is only about the
+                             photographs. --}}
                         <span>
-                            Photographs show a {{ $class->name }} vehicle, not this exact car.
-                            You are booking {{ $vehicle->displayName() }}{{ $vehicle->year ? ', '.$vehicle->year : '' }}{{ $vehicle->colour ? ', '.strtolower((string) $vehicle->colour) : '' }}.
+                            Photographs show another vehicle in the {{ $class->name }} range, not this exact car.
                         </span>
                     </p>
                 @endif
@@ -99,14 +112,29 @@
                 <h1 class="mt-6 font-display text-3xl font-semibold tracking-tight text-ink-900">
                     {{ $class->name }}
                 </h1>
-                {{-- Same rule as the search card: "or similar" is the trade's
-                     standard hedge, and it contradicts a photograph of this
-                     exact car. When the pictures above are this vehicle's own,
-                     the page names the vehicle and stops hedging — and adds the
-                     colour, which is the difference a customer choosing between
-                     two cars in one class is actually choosing on. --}}
+                {{-- Names the car, and only the car.
+
+                     "Or similar" is the hire trade's standard hedge and it is
+                     removed here rather than made conditional. This page
+                     already promises, six lines down under "What is included",
+                     that "a specific vehicle is held for you once you reserve"
+                     — which is true, because VehicleHoldService::place() locks
+                     this row. A hedge sitting above that promise contradicted
+                     it whether or not a photograph was involved, so the
+                     photograph work merely made an existing tension visible.
+
+                     The colour is now always shown rather than only alongside
+                     an own photograph. It is a plain fact about the car, and it
+                     matters MOST when there is no photograph — with a stand-in
+                     picture it is the only thing telling somebody what they are
+                     collecting.
+
+                     ⚠ Spec §8.3 lets staff reassign a booking to another
+                     vehicle of the same class, so "or similar" was not pure
+                     boilerplate. That is a commercial copy decision for the
+                     operator, flagged rather than settled here. --}}
                 <p class="mt-1 text-ink-600">
-                    {{ $vehicle->make }} {{ $vehicle->model }}{{ $vehicle->year ? ', '.$vehicle->year : '' }}@if ($ownPhotographs){{ $vehicle->colour ? ', '.strtolower((string) $vehicle->colour) : '' }}@else or similar @endif
+                    {{ $vehicle->make }} {{ $vehicle->model }}{{ $vehicle->year ? ', '.$vehicle->year : '' }}{{ $vehicle->colour ? ', '.strtolower((string) $vehicle->colour) : '' }}
                 </p>
 
                 @if ($class->description)

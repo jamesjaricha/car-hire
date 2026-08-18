@@ -246,8 +246,42 @@ final class VehiclePhotographsTest extends TestCase
 
         $this->get($this->vehicleUrl($vehicle))
             ->assertSuccessful()
-            ->assertSee('not this exact car', escape: false)
-            ->assertSee('Toyota Corolla', escape: false);
+            // The whole phrase, not just the tail. An earlier wording read
+            // "Photographs show a Economy vehicle" — no single article can
+            // serve both "Economy" and "SUV", and the seeded fleet has both.
+            // This construction needs no article, and asserting it in full is
+            // what would catch a reintroduced one.
+            ->assertSee('another vehicle in the Economy range, not this exact car', escape: false);
+    }
+
+    /**
+     * The page promises under "What is included" that a specific vehicle is
+     * held once you reserve — which is true, because `place()` locks this row.
+     * "Or similar" printed above that promise contradicted it, so it is gone
+     * from this page entirely rather than made conditional.
+     *
+     * ⚠ If the operator decides §8.3 reassignment must be disclosed here, that
+     * is a copy decision and this test is the thing to change deliberately
+     * rather than the assertion to delete quietly.
+     */
+    public function test_the_vehicle_page_names_the_car_without_hedging(): void
+    {
+        [, $class] = $this->fleet();
+
+        $vehicle = $this->vehicle($class, [
+            'make' => 'Toyota',
+            'model' => 'Corolla',
+            'colour' => 'White',
+        ]);
+
+        $this->get($this->vehicleUrl($vehicle))
+            ->assertSuccessful()
+            ->assertDontSee('or similar')
+            // The colour shows whether or not there is a photograph — with a
+            // stand-in picture it is the only thing saying what will be
+            // collected.
+            ->assertSee('Toyota Corolla', escape: false)
+            ->assertSee('white', escape: false);
     }
 
     public function test_the_vehicle_page_makes_no_such_disclaimer_about_its_own_photographs(): void
