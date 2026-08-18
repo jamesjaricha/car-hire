@@ -5,6 +5,68 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## audit_log is protected by the database again · 2026-08-17
+
+**The last item marked "blocking real launch" is closed.** 20i granted `TRIGGER`
+on `bandap-353030303b9a`, and `carhire:install-audit-triggers` installed both
+`audit_log_block_update` and `audit_log_block_delete` into a populated
+production database — no data touched, no migration, one command.
+
+Spec §12 is satisfied in its strong form. Immutability no longer rests on
+`AuditLogEntry` refusing updates and deletes in PHP; the database refuses them,
+so raw SQL, a database client, and any future model written by somebody who has
+not read the docblock are all covered.
+
+This is the payoff for a decision taken on 2026-08-14 that looked like
+over-engineering at the time: moving the trigger SQL out of the migration into
+`App\Support\AuditLogTriggers`, letting the migration warn and continue, and
+exposing a repair command. Without it, "we will fix the audit trail when the
+host grants the privilege" would have had no mechanism behind it, and the answer
+today would have been a `migrate:fresh` on live data.
+
+**The migration's tolerance stays.** It is still correct for any future host that
+refuses, and the repair path has now been exercised for real rather than only in
+a test.
+
+### ⚠ It cost a production outage, and the cause is worth carrying forward
+
+Applying the grant **reset the database user's password on the host's side,
+without warning.** Every connection began failing with `1045 Access denied for
+user 'james-8c41'@'localhost'`, from PHP and from the `mysql` client, and
+`https://pule.jarichatech.com` returned HTTP 500 on every page. Resetting the
+password through StackCP did **not** recover it — neither the old password nor a
+newly set one connected. Only 20i restoring credentials worked. They confirmed
+the cause in writing: *"as part of the fix, the database user's password had to
+be reset on the system side. We should have informed you of this."*
+
+Written up in DEPLOYMENT.md as a standing warning, because the next person to
+change a grant on this package will otherwise take the site down the same way.
+
+### Three wrong diagnoses, and the one that worked
+
+The failure surfaced as `deploy.sh` refusing to migrate without a backup. It was
+blamed on the missing `TRIGGER` privilege (plausible — `mysqldump --triggers`
+needs it), then on a missing `--host` (plausible — no host means socket, means
+`user@localhost`). **Both were mechanisms reasoned from symptoms. Both were
+wrong.**
+
+What identified it was a measurement rather than a mechanism:
+
+```bash
+php artisan migrate:status
+```
+
+failing with the application's own credentials proved the database was rejecting
+them, which no `mysqldump` flag theory could account for. **When a database CLI
+tool fails, test the application's own connection before theorising about the
+tool.** Recorded here because the wrong turnings cost more time than the fix did.
+
+The `--host` change was kept regardless: the reasoning behind it is sound, it
+would have bitten a host without a `@%` grant, and removing `2>/dev/null` is
+what let the real error be seen at all.
+
+---
+
 ## The backup that never ran · 2026-08-17
 
 `deploy.sh` aborted at the backup step with `mysqldump failed. Refusing to

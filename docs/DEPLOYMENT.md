@@ -205,38 +205,72 @@ under "Before the first real booking" is what separates it from a live one.
 
 ## Unresolved before launch
 
-### ⚠ The `TRIGGER` privilege — ABSENT, and the audit trail is weaker for it
+### ✅ The `TRIGGER` privilege — GRANTED, and the triggers are installed
 
-**Settled as a known state on 2026-08-14, not still an open question.**
+**Resolved 2026-08-17.** `SHOW GRANTS` now lists `TRIGGER` on
+`bandap-353030303b9a`, and `carhire:install-audit-triggers` installed both
+`audit_log_block_update` and `audit_log_block_delete`. Spec §12 is satisfied in
+its strong form — `audit_log` immutability is enforced by the database, so raw
+SQL and database clients cannot alter history either.
 
-`SHOW GRANTS` for `james-8c41` on `pule.jarichatech.com` lists no `TRIGGER`
-privilege, so `audit_log_block_update` and `audit_log_block_delete` **do not
-exist on the production database.** Immutability is enforced only by
-`AuditLogEntry` refusing updates and deletes in PHP.
-
-That covers every path the application itself takes. It does not cover raw SQL,
-a database client, or a model somebody adds later without reading the docblock —
-and spec §12 asks for the form that does.
-
-The migration warns and continues rather than failing; the reasoning is in its
-docblock. Check the live state rather than inferring it from a successful deploy:
+`deploy.sh` reports the state on every release. Confirm it rather than inferring
+it from a deploy that exited zero:
 
 ```bash
 php artisan carhire:install-audit-triggers --check
 ```
 
-**To restore it** — no data touched, no migration, any time:
+Exit 0 means both triggers are present.
+
+### ⚠⚠ DO NOT CHANGE MySQL GRANTS ON A LIVE 20i SITE
+
+**Getting that privilege caused a production outage on 2026-08-17**, and the
+mechanism will do it again to anybody who does not know about it.
+
+Applying grants through StackCP — or having 20i apply them — **resets the
+database user's password on the host's side, without warning.** Every connection
+then fails with:
 
 ```
-GRANT TRIGGER ON `bandap-353030303b9a`.* TO `james-8c41`@`%`;
+ERROR 1045 Access denied for user 'james-8c41'@'localhost' (using password: YES)
 ```
+
+from PHP and from the `mysql` client alike, and the site returns HTTP 500 on
+every page. **Resetting the password yourself in StackCP does not recover it** —
+neither the old password nor a newly set one connected. Only the host restoring
+credentials worked. 20i confirmed the cause in writing.
+
+If grants must change:
+
+- Do it in a **maintenance window**, never while the site is being demonstrated.
+- Ask support to apply the grant **and tell you the resulting password** in the
+  same ticket.
+- If using the dialog yourself: **grants first, password second, `.env` third** —
+  the grant save is what resets the password, so any other order means editing
+  `.env` twice and a second outage.
+- **`php artisan config:clear` after editing `.env`**, or the cached config keeps
+  serving the old credentials and the fix looks like it failed.
+- **Afterwards, re-check `.env`.** A temporary password typed in during the
+  incident will still be there once the host restores the account, and the site
+  may be running on stale cached config — which detonates on the next
+  `config:cache`, i.e. at the end of the next deploy.
+
+### Diagnosing a database failure here
+
+The `mysqldump` failure that exposed all this was blamed first on the missing
+`TRIGGER` privilege (`--triggers` plausibly needs it) and then on a missing
+`--host` (no host means socket, means `user@localhost`). **Both were mechanisms
+reasoned from symptoms and both were wrong.**
+
+What identified it was testing the application rather than the tool:
 
 ```bash
-php artisan carhire:install-audit-triggers
+php artisan migrate:status | head -5
 ```
 
-Tracked in [OPEN-ITEMS.md](OPEN-ITEMS.md) as blocking real launch. The operator
-was told alongside the demo link.
+That failing with the app's own credentials proved the database was rejecting
+them, which no `mysqldump` flag theory could explain. **When a database CLI tool
+fails, test Laravel's own connection before theorising about the tool.**
 
 ---
 
@@ -376,7 +410,8 @@ against live booking or payment data.
 
 ## Before the first real booking
 
-- [ ] `TRIGGER` privilege confirmed and both triggers present
+- [x] `TRIGGER` privilege confirmed and both triggers present — **done
+      2026-08-17**, verify again after any host-side database work
 - [ ] Every blocking item in [OPEN-ITEMS.md](OPEN-ITEMS.md) answered — no
       placeholder settings remain
 - [ ] Cron confirmed running, and `carhire:expire-bookings` observed cancelling

@@ -85,13 +85,38 @@ complete.
 
 ## Technical risks carried forward
 
-**⚠ `TRIGGER` privilege — CONFIRMED ABSENT IN PRODUCTION, 2026-08-14. BLOCKING
-REAL LAUNCH.**
+**✅ `TRIGGER` privilege — GRANTED AND THE TRIGGERS ARE INSTALLED, 2026-08-17.
+NO LONGER BLOCKING LAUNCH.**
 
-No longer a risk; a live condition. `SHOW GRANTS` for `james-8c41` on the 20i
-package `pule.jarichatech.com` returns no `TRIGGER` privilege, so the two
-`BEFORE UPDATE` / `BEFORE DELETE` triggers protecting `audit_log` **do not exist
-on the production database.**
+`SHOW GRANTS` for `james-8c41` on `bandap-353030303b9a` now lists `TRIGGER`
+(alongside `EVENT` and `REFERENCES`), and
+`php artisan carhire:install-audit-triggers` reported *"audit_log is now
+protected at the database level"*. Both `audit_log_block_update` and
+`audit_log_block_delete` exist in production. **Spec §12 is satisfied in the
+strong form: immutability is enforced by the database, not merely by
+`AuditLogEntry`'s PHP guard, so raw SQL and database clients are covered too.**
+
+⚠ **It cost a production outage, and the mechanism is worth knowing before
+anyone changes grants again.** Applying the privilege reset the database user's
+password on 20i's side without warning, and the site returned HTTP 500 on every
+page until the credentials were restored — self-service password resets in
+StackCP did *not* recover it; only the host could. Full account in the
+changelog, and in the `20i deployment` memory. **Do not change MySQL grants on
+this package while the site is in front of anyone.**
+
+Verify after any future deploy rather than assuming — `deploy.sh` reports it on
+every run, and the check is `carhire:install-audit-triggers --check`.
+
+**Prior wording, kept because the reasoning still stands.** Between 2026-08-14
+and 2026-08-17 the privilege was absent, and the migration was deliberately
+changed to warn and continue rather than fail — failing left `audit_log` created
+with the migration unrecorded, so the retry errored on "table already exists", a
+hosting limitation presenting as a broken build. That tolerance stays: it is
+still correct for any future host that refuses, and the repair command is what
+makes "reversible" true rather than rhetorical. It was used today, exactly as
+designed, on a populated database, with no data touched and no migration needed.
+
+The condition that used to be described here was:
 
 What that means concretely: `audit_log` immutability is enforced only by
 `AuditLogEntry`, which refuses updates and deletes in PHP. That protects every
@@ -116,9 +141,9 @@ the command. No data is touched and no migration is needed. There is a test that
 drops the triggers, restores them with the command, and proves a raw `UPDATE` is
 refused afterwards.
 
-**Before this platform takes real money**, either the privilege is granted and
-the command run, or the operator accepts in writing that the audit trail is
-application-enforced. The operator was told about this alongside the demo link.
+**Resolved 2026-08-17: the privilege was granted and the command was run.** The
+alternative — the operator accepting in writing that the audit trail was only
+application-enforced — is no longer needed.
 
 **Prior wording, kept for context:** "Shared hosting does not always grant the
 `TRIGGER` privilege. Verify on the production database before launch, not
