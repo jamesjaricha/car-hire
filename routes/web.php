@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\BasketController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LocationsController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\VehicleClassController;
 use App\Http\Controllers\VehicleController;
@@ -24,6 +25,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
 Route::get('/search', SearchController::class)->name('search');
+
+// Where the operator trades from. Branches have been in the schema since Phase
+// 1 and, until now, reached a customer only as options in a dropdown — so
+// somebody deciding whether to hire here at all could not see the premises,
+// find the address or telephone anyone.
+Route::get('/branches', LocationsController::class)->name('locations');
 
 // Browsing a class. Deliberately dateless and therefore quotes nothing — see
 // the controller. Registered before the vehicle route only for readability;

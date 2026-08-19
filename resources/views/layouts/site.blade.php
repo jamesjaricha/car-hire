@@ -56,6 +56,13 @@
                    class="flex min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                     Find a car
                 </a>
+                <a href="{{ route('locations') }}"
+                   class="flex min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                    Branches
+                </a>
+                {{-- Hidden on the narrowest screens, unlike Branches: it is an
+                     in-page anchor rather than a destination, and a phone header
+                     that wraps to two rows costs more than the link is worth. --}}
                 <a href="{{ route('home') }}#how-it-works"
                    class="hidden min-h-11 items-center rounded-lg px-3 font-medium text-brand-100 [transition:background-color_150ms_ease,color_150ms_ease] hover:bg-brand-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:flex">
                     How it works
@@ -90,6 +97,12 @@
                     <ul class="mt-2 space-y-1.5 text-sm text-brand-200">
                         <li>A refundable security deposit is taken at the branch.</li>
                         <li>The insurance excess is shown at checkout.</li>
+                        <li>
+                            <a href="{{ route('locations') }}"
+                               class="rounded underline decoration-brand-700 underline-offset-2 hover:text-white hover:decoration-brand-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                                Where to collect your car
+                            </a>
+                        </li>
                     </ul>
                 </div>
                 <div>

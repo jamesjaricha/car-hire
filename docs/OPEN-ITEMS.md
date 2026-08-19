@@ -25,7 +25,7 @@ Last reviewed: 2026-08-09 (Phase 4, settings and fleet pricing).
 | 5 | Accepted KYC documents, minimum driver age, minimum licence years, foreign licence policy | `settings.minimum_driver_age`, `minimum_licence_years`, `foreign_licence_accepted` | **PLACEHOLDER** |
 | 6 | Cross-border: supported countries, price and document checklist per country | Not yet modelled — due in the cross-border phase | Outstanding |
 | 7 | SMS provider and registered sender ID | `settings.sms_provider`, `sms_sender_id` | **PLACEHOLDER**, empty |
-| 8 | Branch list, operating hours, after-hours pickup policy | `branches` table | **PLACEHOLDER** — two demo branches seeded locally |
+| 8 | Branch list, operating hours, after-hours pickup policy | `branches` table | **ANSWERABLE IN THE PANEL** since 2026-08-19 — `/admin` → Branches, Super Admin. Hours stay **NULL = not published**; the locations page says so rather than inventing any. Navigation badge counts branches still missing them |
 | 9 | Fuel policy (full-to-full? charged shortfall rate?) | `settings.fuel_policy` | **PLACEHOLDER** `full_to_full` |
 | 10 | Mileage policy (unlimited? daily cap and excess rate?) | `settings.mileage_policy` | **PLACEHOLDER** `unlimited` |
 | 11 | Late return charge rate | `settings.late_return_hourly_charge` | **PLACEHOLDER** `0.00` |

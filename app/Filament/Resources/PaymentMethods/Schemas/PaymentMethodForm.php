@@ -85,18 +85,64 @@ final class PaymentMethodForm
                         ->label('Account details')
                         ->keyLabel('Field')
                         ->valueLabel('Value')
-                        ->addActionLabel('Add a detail')
+                        ->addActionLabel('Add another detail')
                         ->helperText(fn (PaymentMethod $record): string => self::requiredKeysHint($record))
+                        // ⚠ THIS IS WHY THE SCREEN WAS UNUSABLE, 2026-08-19.
+                        //
+                        // The required keys are exact snake_case identifiers
+                        // that an adapter looks up — `bank_name`,
+                        // `account_number`. With an empty grid, the operator had
+                        // to TYPE those keys from scratch, spelled precisely, or
+                        // the save was refused naming three fields they had
+                        // never been given a box for. The operator's report was
+                        // that it "brought back an error which looks like the
+                        // data type I had put was invalid", which is exactly
+                        // what guessing an internal contract feels like.
+                        //
+                        // Seeding the rows turns "know our key names" into "fill
+                        // in the blanks". Extra details can still be added, and
+                        // still work as :merge_fields.
+                        ->afterStateHydrated(static function (KeyValue $component, PaymentMethod $record): void {
+                            $state = $component->getState();
+                            $state = is_array($state) ? $state : [];
+
+                            $ordered = [];
+
+                            // Required first, in the adapter's own order, so the
+                            // form reads top to bottom the way somebody copying
+                            // off a bank statement expects.
+                            foreach (self::requiredKeys($record) as $key) {
+                                $ordered[$key] = $state[$key] ?? '';
+                            }
+
+                            foreach ($state as $key => $value) {
+                                if (! array_key_exists($key, $ordered)) {
+                                    $ordered[$key] = $value;
+                                }
+                            }
+
+                            $component->state($ordered);
+                        })
                         ->rules([
                             fn (PaymentMethod $record): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($record): void {
                                 $missing = self::missingRequiredKeys($record, is_array($value) ? $value : []);
 
                                 if ($missing !== []) {
+                                    // Names the fields AND says they are already
+                                    // on screen. The previous wording said "add
+                                    // bank_name, account_name", which reads as a
+                                    // demand to create something rather than an
+                                    // instruction to fill a box that is right
+                                    // there.
                                     $fail(sprintf(
-                                        'This method cannot be offered to customers without %s. '
-                                        .'Add %s, or switch the method off.',
-                                        count($missing) === 1 ? 'one more detail' : 'these details',
-                                        implode(', ', $missing),
+                                        'Fill in %s above before customers can be offered this method. '
+                                        .'%s still empty. Leave them blank and the method simply will not '
+                                        .'appear at checkout, which is safe — a customer is never told to '
+                                        .'send money to a blank account number.',
+                                        count($missing) === 1 ? 'the remaining field' : 'the remaining fields',
+                                        count($missing) === 1
+                                            ? sprintf('"%s" is', $missing[0])
+                                            : sprintf('"%s" are', implode('", "', $missing)),
                                     ));
                                 }
                             },

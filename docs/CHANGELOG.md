@@ -5,6 +5,87 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Branches get a screen, and a page · 2026-08-19
+
+Unparks one of the back-office screens deferred before the demo, and closes a
+gap on the customer site nobody had named: **branches have existed since Phase 1
+and reached a customer only as options in a dropdown.** Somebody deciding
+whether to hire from this operator at all could not see that he has two
+premises, where they are, or how to telephone one — on a site with no card
+gateway, where the whole ask is that a stranger transfers money and trusts it.
+
+**No migration.** The columns have been there since the first migration:
+`address`, `phone_e164`, `opens_at`, `closes_at`, `after_hours_pickup`.
+
+### Added
+
+- **`BranchResource`** — the third resource in this panel with real forms, plus
+  `BranchPolicy`. Name, code, city, address, telephone, opening hours,
+  after-hours collection, and the `is_active` switch.
+- **`/branches`** and `LocationsController` — every open branch with its
+  address, a tappable telephone link, its hours and how many cars it can
+  actually supply.
+- `Branch::publishesHours()`, `openingHoursLabel()`, and the
+  `withoutPublishedHours()` scope.
+- A **Hours** column, an **"Hours not published"** filter and tab, and a
+  navigation badge counting branches still missing the §15.8 answer.
+- Header and footer links, so the site's navigation is no longer two items, one
+  of which is an anchor.
+
+### Decisions
+
+- **`settings.manage`, and NO new permission row.** Spec §15.8 is, word for
+  word, *"Branch list, operating hours, after-hours pickup policy"* — a business
+  decision of exactly the kind that permission already covers, not a fleet
+  operation. Reusing it matters practically as well as conceptually:
+  `hasPermissionTo()` throws for a missing permission rather than returning
+  false, so every new case is a deployment step that breaks the panel until
+  `RolesAndPermissionsSeeder` is re-run. **Eight documented §12 departures stay
+  eight.**
+
+  The case for a narrower `branches.manage` at Branch Manager level is real — a
+  manager knows their own opening hours — but it is the wrong shape today.
+  There is no branch scoping in this panel (already recorded in OPEN-ITEMS as a
+  decision), so a manager holding it could edit every other branch too. That is
+  a bigger change than a CRUD screen and belongs with the roles UI.
+
+- **Opening hours stay nullable, and the form does not require them.** Same
+  reasoning as the §15 pricing fields — see ARCHITECTURE §14 — with one
+  difference worth stating. A missing *price* withholds a class from sale,
+  because publishing a wrong one takes money on false terms. Missing *hours*
+  withhold nothing: the branch still trades and customers still book. So the
+  locations page says "opening hours not published — please telephone before
+  travelling" rather than inventing `08:00–17:00`. **A blank is honest; a guess
+  has somebody drive to a closed gate.** There is a test asserting no plausible
+  default appears.
+
+- **One time without the other counts as unpublished.** "Opens 08:00" with no
+  closing time tells somebody planning a collection precisely as much as silence
+  does, while looking like an answer. The predicate and the scope agree on this,
+  because a badge that contradicts the screen it sits on is worse than no badge.
+
+- **The code is fixed after creation.** It is unique per operator and is what
+  `DemoFleetSeeder` keys on with `firstOrCreate`. Renaming one would make the
+  next seeder run create a duplicate branch instead of finding the existing one
+  — and this project re-seeds on every deploy. The field is disabled rather than
+  hidden, because somebody needs to read it when matching a branch against a
+  seeder or a support conversation. Not dehydrated on edit, following the
+  precedent set by the vehicle price overrides.
+
+- **Branches are closed, never deleted.** `vehicles` references them with
+  `restrictOnDelete`, and a booking's collection point reads through them: a
+  hire collected from Livingstone in March must still say Livingstone next year.
+
+- **The vehicle count on the public page is bookable cars only**, matching the
+  home page. Counting a car in maintenance advertises a fleet the branch cannot
+  supply.
+
+- **The one-way hire rule is stated on the page.** Confirmed with the operator
+  on 2026-08-03 and true since Phase 1, but the search form gives no hint of it,
+  so a customer could plan around an assumption the operator will not honour.
+
+---
+
 ## A gallery you can actually open, and class photographs sent home · 2026-08-18
 
 Both from the operator using the deployed site. Neither would have been found by

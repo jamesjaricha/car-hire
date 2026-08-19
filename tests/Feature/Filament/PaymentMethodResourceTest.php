@@ -97,6 +97,64 @@ final class PaymentMethodResourceTest extends TestCase
     }
 
     /**
+     * The operator must never have to GUESS a key name.
+     *
+     * REGRESSION. `bank_name`, `account_name` and `account_number` are exact
+     * identifiers an adapter looks up. The form was an empty key/value grid, so
+     * entering bank details meant typing those three keys from scratch, spelled
+     * precisely — and any other spelling was refused with a message naming
+     * fields the operator had never been shown a box for. Reported as an error
+     * that "looks like the data type I had put was invalid", which is what
+     * guessing an internal contract feels like from the outside.
+     *
+     * The rows are now seeded empty, so the job is filling blanks rather than
+     * knowing our vocabulary.
+     */
+    public function test_the_required_fields_are_already_on_the_form_waiting_for_values(): void
+    {
+        $method = $this->bankTransfer();
+
+        $this->assertNull($method->account_details);
+
+        Livewire::actingAs($this->admin())
+            ->test(EditPaymentMethod::class, ['record' => $method->getKey()])
+            ->assertFormSet([
+                'account_details' => [
+                    'bank_name' => '',
+                    'account_name' => '',
+                    'account_number' => '',
+                ],
+            ]);
+    }
+
+    /**
+     * Seeding the blanks must not disturb details already entered, nor discard
+     * extra fields the operator added for use as :merge_fields.
+     */
+    public function test_seeding_the_blanks_preserves_existing_and_extra_details(): void
+    {
+        $method = $this->bankTransfer();
+
+        $method->forceFill([
+            'account_details' => [
+                'account_number' => '1234567890',
+                'swift_code' => 'ZANAZMLU',
+            ],
+        ])->save();
+
+        Livewire::actingAs($this->admin())
+            ->test(EditPaymentMethod::class, ['record' => $method->getKey()])
+            ->assertFormSet([
+                'account_details' => [
+                    'bank_name' => '',
+                    'account_name' => '',
+                    'account_number' => '1234567890',
+                    'swift_code' => 'ZANAZMLU',
+                ],
+            ]);
+    }
+
+    /**
      * The rule that stops a method being switched on but unusable. The checkout
      * gate refuses it anyway; this means the operator finds out on the screen
      * where they can fix it, rather than by noticing an option has vanished.

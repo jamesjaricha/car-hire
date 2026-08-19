@@ -201,6 +201,14 @@ carhire/
 │   │       │   │                             `fleet.manage-vehicles`, Branch
 │   │       │   │                             Manager and above — a car is local
 │   │       │   │                             where a class price list is not.
+│   │       ├── Branches/                    Where the operator trades from.
+│   │       │                                 `settings.manage` — §15.8 is a
+│   │       │                                 BUSINESS decision, so no new
+│   │       │                                 permission row and no deploy step.
+│   │       │                                 Hours stay nullable: a blank is
+│   │       │                                 honest, a guess sends somebody to
+│   │       │                                 a closed gate. `code` is fixed
+│   │       │                                 after creation — seeders key on it.
 │   │       │   ├── VehicleResource.php       Badge counts cars off the road.
 │   │       │   ├── Pages/                    index, create, edit. No delete.
 │   │       │   ├── Schemas/VehicleForm.php ★
