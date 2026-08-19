@@ -84,6 +84,40 @@ gateway, where the whole ask is that a stranger transfers money and trusts it.
   on 2026-08-03 and true since Phase 1, but the search form gives no hint of it,
   so a customer could plan around an assumption the operator will not honour.
 
+### Also: the payment methods screen could not be used at all
+
+Reported by the operator trying to enter bank details for the demo, and it had
+been broken since the screen shipped on 2026-08-09 — nobody had entered account
+details through it before, so nobody had met it.
+
+**The required keys are exact snake_case identifiers an adapter looks up** —
+`bank_name`, `account_name`, `account_number`, `merchant_number`. The form was
+an empty key/value grid, so entering details meant **typing those keys from
+scratch, spelled precisely**, and any other spelling was refused with a message
+naming fields the operator had never been given a box for. His description was
+that it "brought back an error which looks like the data type I had put was
+invalid" — which is exactly what guessing an internal contract feels like from
+outside. The rows are now seeded empty, so the job is filling blanks.
+
+**Then the first fix produced a loop.** The reworded message said leaving the
+fields blank was safe — true, because `PaymentMethodService` withholds an
+unconfigured method from checkout — while the validation still refused to save
+them blank. Both halves were individually correct and together there was no way
+forward: no value would save, and nothing on screen mentioned the actual
+alternative.
+
+**The rule now only bites when the method is switched on.** Blocking a save
+protects nobody when the method is off; it only stops an operator recording
+partial work, which is the ordinary case when the bank details are on somebody
+else's desk. Switched on and incomplete is still refused, and the message now
+names both ways out — fill them in, or switch the method off. Two tests, one per
+direction.
+
+This is the same shape as the confirmation-screen bug in Phase 5 and the "or
+similar" contradiction on the vehicle page: **two statements, each defensible
+alone, that cannot both be acted on.** Third instance on this project, and all
+three were found by somebody using the screen rather than by a test.
+
 ---
 
 ## A gallery you can actually open, and class photographs sent home · 2026-08-18

@@ -124,25 +124,41 @@ final class PaymentMethodForm
                             $component->state($ordered);
                         })
                         ->rules([
-                            fn (PaymentMethod $record): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                            // ⚠ THE RULE ONLY BITES WHEN THE METHOD IS SWITCHED
+                            // ON, and that is the correction rather than a
+                            // loosening.
+                            //
+                            // It used to refuse ANY save with a required detail
+                            // missing. But `PaymentMethodService` already
+                            // withholds an unconfigured method from checkout, so
+                            // blocking the save protects no customer when the
+                            // method is off — it only stops the operator saving
+                            // work in progress. Worse, the message said blank
+                            // was safe while the validation refused blank, which
+                            // is a loop with no way out: no value would save, and
+                            // no explanation on screen said to switch the method
+                            // off instead.
+                            //
+                            // Now there are two honest ways forward and the
+                            // message names both.
+                            fn (PaymentMethod $record, Get $get): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($record, $get): void {
+                                if (! $get('enabled')) {
+                                    return;
+                                }
+
                                 $missing = self::missingRequiredKeys($record, is_array($value) ? $value : []);
 
                                 if ($missing !== []) {
-                                    // Names the fields AND says they are already
-                                    // on screen. The previous wording said "add
-                                    // bank_name, account_name", which reads as a
-                                    // demand to create something rather than an
-                                    // instruction to fill a box that is right
-                                    // there.
                                     $fail(sprintf(
-                                        'Fill in %s above before customers can be offered this method. '
-                                        .'%s still empty. Leave them blank and the method simply will not '
-                                        .'appear at checkout, which is safe — a customer is never told to '
-                                        .'send money to a blank account number.',
-                                        count($missing) === 1 ? 'the remaining field' : 'the remaining fields',
+                                        'This method is switched on but cannot be used yet: %s still empty. '
+                                        .'Either fill %s in above, or switch "Accept this method" off until you '
+                                        .'have the details. Customers are never shown a method with a blank '
+                                        .'account number, so leaving it on and incomplete would simply make it '
+                                        .'vanish from checkout with nothing explaining why.',
                                         count($missing) === 1
                                             ? sprintf('"%s" is', $missing[0])
                                             : sprintf('"%s" are', implode('", "', $missing)),
+                                        count($missing) === 1 ? 'it' : 'them',
                                     ));
                                 }
                             },

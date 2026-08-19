@@ -155,23 +155,53 @@ final class PaymentMethodResourceTest extends TestCase
     }
 
     /**
-     * The rule that stops a method being switched on but unusable. The checkout
+     * The rule that stops a method being switched ON but unusable. The checkout
      * gate refuses it anyway; this means the operator finds out on the screen
      * where they can fix it, rather than by noticing an option has vanished.
      */
-    public function test_it_refuses_details_missing_what_the_adapter_requires(): void
+    public function test_it_refuses_details_missing_while_the_method_is_switched_on(): void
     {
         $method = $this->bankTransfer();
 
         Livewire::actingAs($this->admin())
             ->test(EditPaymentMethod::class, ['record' => $method->getKey()])
             ->fillForm([
+                'enabled' => true,
                 'account_details' => ['bank_name' => 'Zanaco'],
             ])
             ->call('save')
             ->assertHasFormErrors(['account_details']);
 
         $this->assertNull($method->refresh()->account_details);
+    }
+
+    /**
+     * THE WAY OUT, and it did not exist until 2026-08-19.
+     *
+     * The rule used to refuse any save with a required detail missing, while
+     * the message told the operator that leaving it blank was safe. Both halves
+     * were defensible and together they were a loop: no value would save, and
+     * nothing on screen said switching the method off was the alternative.
+     *
+     * Blocking a save protects nobody when the method is off — `Payment
+     * MethodService` withholds an unconfigured method from checkout regardless.
+     * What it did was stop the operator recording partial work, which is the
+     * ordinary case when the bank details are on somebody else's desk.
+     */
+    public function test_a_switched_off_method_may_be_saved_part_finished(): void
+    {
+        $method = $this->bankTransfer();
+
+        Livewire::actingAs($this->admin())
+            ->test(EditPaymentMethod::class, ['record' => $method->getKey()])
+            ->fillForm([
+                'enabled' => false,
+                'account_details' => ['bank_name' => 'Zanaco'],
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('Zanaco', $method->refresh()->account_details['bank_name']);
     }
 
     public function test_cash_needs_no_account_details(): void
