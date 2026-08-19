@@ -5,6 +5,67 @@ developer guideline §3, or one slice of a phase still in progress.
 
 ---
 
+## Terms of hire, generated from what the platform charges · 2026-08-19
+
+Closes two plain spec gaps rather than a matter of polish. **Spec §6 requires
+the security deposit to appear in the terms and conditions, and §10 requires the
+insurance excess to be stated — and there were no terms at all.**
+
+`/terms`, linked from the footer of every page.
+
+### Generated, not written
+
+Every figure is read from the same source the customer is charged from: the
+deposit percentage and cancellation window from `settings`, the security deposit
+and excess from each `vehicle_class`, the payment methods from the service that
+decides what checkout offers, the branches and their hours from `branches`.
+**The page cannot contradict the checkout, because it is reading the checkout's
+own data.**
+
+Prose would have been quicker and would have started drifting the first time
+somebody edited a figure in the panel — which, with a terms page, means the
+operator being held to a number the system no longer uses.
+
+### ⚠ An undecided figure is never printed as a term
+
+The important rule, and it is stronger here than anywhere else in the platform.
+Elsewhere a §15 placeholder produces a warning in the panel, or withholds a
+class from sale. Here it would produce a **contractual statement the operator
+never made** — *"an administration fee of ZMW 0.00 applies"* is a promise,
+published, to everyone who reads the page, and one he could be held to.
+
+So every policy value passes through `decided()`, which returns null when
+`SettingsRepository::isPlaceholder()` says nobody has chosen it. The page then
+marks the term **"confirmed before you pay"** rather than inventing one, and
+explains that marking in a footnote. Same lesson as ARCHITECTURE §14, at its
+highest stakes.
+
+**A decided zero prints normally**, and there is a test for it. An operator who
+genuinely charges nothing to cancel has made a decision and the page must state
+it — that distinction is the entire reason those columns are nullable rather
+than defaulted, and a page that could not tell the two apart would have made the
+nullability pointless.
+
+### Decisions
+
+- **Unpriced classes are omitted.** `AvailabilityService` already withholds them
+  from search, so publishing their terms would describe a hire nobody can book —
+  and their figures are precisely the undecided ones.
+- **Payment methods are asked for a pickup seven days out.** `selectableFor()`
+  applies the §8.2 short-notice rule, so asking about *now* would describe what
+  happens to be offerable this afternoon rather than what is normally available.
+- **§8.2 and §8.4 are stated plainly**, including the part customers dislike: no
+  vehicle is held inside the short-notice window, and an unpaid booking is
+  cancelled at its deadline. A term nobody reads until it bites them is worse
+  than one stated up front.
+- **§7.3 is spelled out** — proof of payment is not confirmation, and a person
+  verifies every payment. The confirmation page already refuses to say
+  "confirmed" for this reason; the terms now agree with it.
+- **Branch hours appear here too, with the same honesty as the locations page.**
+  Unpublished reads "hours not published", never an invented 08:00–17:00.
+
+---
+
 ## Branches get a screen, and a page · 2026-08-19
 
 Unparks one of the back-office screens deferred before the demo, and closes a

@@ -7,6 +7,7 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LocationsController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\TermsController;
 use App\Http\Controllers\VehicleClassController;
 use App\Http\Controllers\VehicleController;
 use Illuminate\Support\Facades\Route;
@@ -31,6 +32,12 @@ Route::get('/search', SearchController::class)->name('search');
 // somebody deciding whether to hire here at all could not see the premises,
 // find the address or telephone anyone.
 Route::get('/branches', LocationsController::class)->name('locations');
+
+// Spec §6 requires the security deposit to appear in the terms and conditions,
+// and §10 the insurance excess. There were no terms at all until 2026-08-19 —
+// a spec gap rather than a matter of polish. Every figure is read from the same
+// source the customer is charged from, so the page cannot drift from checkout.
+Route::get('/terms', TermsController::class)->name('terms');
 
 // Browsing a class. Deliberately dateless and therefore quotes nothing — see
 // the controller. Registered before the vehicle route only for readability;

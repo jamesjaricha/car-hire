@@ -103,6 +103,12 @@
                                 Where to collect your car
                             </a>
                         </li>
+                        <li>
+                            <a href="{{ route('terms') }}"
+                               class="rounded underline decoration-brand-700 underline-offset-2 hover:text-white hover:decoration-brand-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                                Terms of hire
+                            </a>
+                        </li>
                     </ul>
                 </div>
                 <div>
