@@ -114,7 +114,11 @@ final class PaymentMethodForm
                                     return;
                                 }
 
-                                $missing = self::missingRequiredKeys($record, is_array($value) ? $value : []);
+                                // Passed raw. `missingRequiredKeys()` normalises,
+                                // because the browser submits KeyValue state as
+                                // a list of {key, value} rows and only the
+                                // dehydrated form is associative.
+                                $missing = self::missingRequiredKeys($record, $value);
 
                                 if ($missing !== []) {
                                     $fail(sprintf(
@@ -152,12 +156,18 @@ final class PaymentMethodForm
                             // a field and using it in the same save is refused
                             // for a field they just supplied.
                             fn (PaymentMethod $record, Get $get): Closure => static function (string $attribute, mixed $value, Closure $fail) use ($record, $get): void {
-                                $submitted = $get('account_details');
+                                // Normalised for the same reason as the rule
+                                // above: `$get` returns the browser's list of
+                                // {key, value} rows, and `array_keys()` over
+                                // that yields 0, 1, 2 rather than the field
+                                // names — so every placeholder an operator had
+                                // just supplied would read as unknown.
+                                $submitted = self::normaliseDetails($get('account_details'));
 
                                 $unknown = self::unknownPlaceholders(
                                     $record,
                                     (string) $value,
-                                    is_array($submitted) ? $submitted : null,
+                                    $submitted === [] ? null : $submitted,
                                 );
 
                                 if ($unknown !== []) {
@@ -244,11 +254,73 @@ final class PaymentMethodForm
     }
 
     /**
-     * @param  array<string, mixed>  $details
+     * `KeyValue` state as an associative array, whatever shape it arrives in.
+     *
+     * ⚠ THE BUG THIS EXISTS FOR MADE THIS SCREEN UNUSABLE FROM THE DAY IT
+     * SHIPPED (2026-08-09) UNTIL 2026-08-20.
+     *
+     * Filament's `KeyValue` holds its state in the browser as a LIST of rows:
+     *
+     *     [['key' => 'bank_name', 'value' => 'Stanbic'], ...]
+     *
+     * and folds that into `['bank_name' => 'Stanbic', ...]` only when it
+     * DEHYDRATES. Validation runs before dehydration, so a rule reading
+     * `$details['bank_name']` looks it up in a list with numeric indices, finds
+     * nothing, and correctly reports the field empty — while the operator is
+     * looking at the value they typed. Every required detail read as missing,
+     * with no way through the form at all.
+     *
+     * It went unnoticed because `fillForm()` in a Filament test sets an
+     * ASSOCIATIVE array straight into form state. Every test passed against a
+     * shape a browser never submits. The suite proved the rules and never once
+     * exercised the round trip.
+     *
+     * Found by reading `Livewire.all()` state in the live page rather than by
+     * reasoning about it — two earlier explanations were plausible and wrong.
+     *
+     * Both shapes are accepted deliberately: the row form is what a browser
+     * sends, the associative form is what `fillForm()` and a saved record give,
+     * and normalising covers both rather than betting on one.
+     *
+     * @return array<string, mixed>
+     */
+    private static function normaliseDetails(mixed $state): array
+    {
+        if (! is_array($state)) {
+            return [];
+        }
+
+        $details = [];
+
+        foreach ($state as $key => $value) {
+            // A row from the browser.
+            if (is_array($value) && array_key_exists('key', $value)) {
+                $name = trim((string) ($value['key'] ?? ''));
+
+                // A blank row is what the "Add another detail" button makes
+                // before anything is typed into it. It is not a field.
+                if ($name === '') {
+                    continue;
+                }
+
+                $details[$name] = $value['value'] ?? '';
+
+                continue;
+            }
+
+            $details[(string) $key] = $value;
+        }
+
+        return $details;
+    }
+
+    /**
      * @return list<string>
      */
-    private static function missingRequiredKeys(PaymentMethod $record, array $details): array
+    private static function missingRequiredKeys(PaymentMethod $record, mixed $state): array
     {
+        $details = self::normaliseDetails($state);
+
         return array_values(array_filter(
             self::requiredKeys($record),
             static fn (string $key): bool => ! isset($details[$key]) || trim((string) $details[$key]) === '',

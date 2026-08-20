@@ -155,6 +155,81 @@ final class PaymentMethodResourceTest extends TestCase
     }
 
     /**
+     * ⚠ THE SHAPE A BROWSER ACTUALLY SUBMITS.
+     *
+     * REGRESSION, and the one that mattered most: this screen could not save
+     * account details at all, in any browser, from the day it shipped
+     * (2026-08-09) until 2026-08-20.
+     *
+     * Filament's `KeyValue` holds its state as a LIST of `{key, value}` rows and
+     * folds it into an associative array only when it DEHYDRATES. Validation
+     * runs before that, so the rules were looking up `$details['bank_name']` in
+     * a list with numeric indices, finding nothing, and reporting every field
+     * empty while the operator looked at the values they had typed.
+     *
+     * Every other test here passed throughout, because `fillForm()` sets an
+     * associative array straight into form state — a shape a browser never
+     * sends. **A Filament form test proves the rules; only feeding it the row
+     * shape proves the round trip.**
+     *
+     * Confirmed by reading `Livewire.all()` state in the live page. Two earlier
+     * explanations were plausible and wrong.
+     */
+    public function test_it_accepts_the_row_shape_a_browser_submits(): void
+    {
+        $method = $this->bankTransfer();
+
+        Livewire::actingAs($this->admin())
+            ->test(EditPaymentMethod::class, ['record' => $method->getKey()])
+            ->fillForm([
+                'enabled' => true,
+                'account_details' => [
+                    ['key' => 'bank_name', 'value' => 'Stanbic'],
+                    ['key' => 'account_name', 'value' => 'Pule Car Hire'],
+                    ['key' => 'account_number', 'value' => '12345678910'],
+                ],
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        // And it must land in the database associatively, because that is what
+        // the adapter reads when it builds a customer's instructions.
+        $this->assertSame(
+            [
+                'bank_name' => 'Stanbic',
+                'account_name' => 'Pule Car Hire',
+                'account_number' => '12345678910',
+            ],
+            $method->refresh()->account_details,
+        );
+    }
+
+    /**
+     * A row the operator added and never typed into is not a field, and must
+     * not be mistaken for one — in either direction.
+     */
+    public function test_a_blank_row_is_ignored_rather_than_counted(): void
+    {
+        $method = $this->bankTransfer();
+
+        Livewire::actingAs($this->admin())
+            ->test(EditPaymentMethod::class, ['record' => $method->getKey()])
+            ->fillForm([
+                'enabled' => true,
+                'account_details' => [
+                    ['key' => 'bank_name', 'value' => 'Stanbic'],
+                    ['key' => 'account_name', 'value' => 'Pule Car Hire'],
+                    ['key' => 'account_number', 'value' => '12345678910'],
+                    ['key' => '', 'value' => ''],
+                ],
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertArrayNotHasKey('', $method->refresh()->account_details);
+    }
+
+    /**
      * The rule that stops a method being switched ON but unusable. The checkout
      * gate refuses it anyway; this means the operator finds out on the screen
      * where they can fix it, rather than by noticing an option has vanished.
