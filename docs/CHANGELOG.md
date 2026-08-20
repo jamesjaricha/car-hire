@@ -179,6 +179,32 @@ similar" contradiction on the vehicle page: **two statements, each defensible
 alone, that cannot both be acted on.** Third instance on this project, and all
 three were found by somebody using the screen rather than by a test.
 
+#### ⚠ And then the seeding itself was wrong, and shipped
+
+The first implementation seeded the rows with an `afterStateHydrated` callback on
+the field. It reached production, and the operator filled in all three bank
+fields, watched them sitting on screen, and was still told they were empty.
+
+`afterStateHydrated` runs on **every** hydration — not once at fill, but on the
+request after a failed validation and on every Livewire round trip in between.
+It read the component's state, rebuilt it, and wrote it back. The browser kept
+showing what had been typed while the state the server rebuilt no longer matched
+it, so the validator correctly reported empty fields for values plainly visible
+on the page. **A validation error the user cannot act on is worse than the
+missing feature it was added to fix** — the original fault at least let you
+guess the key names.
+
+Moved to `EditPaymentMethod::mutateFormDataBeforeFill()`, which runs **once**, on
+fill, against the model's plain attributes, before any component or Alpine state
+exists to disturb.
+
+**The suite did not catch it, and structurally could not.** `fillForm()` sets an
+associative array straight into form state, so the assertions passed against a
+shape a browser never produces. A Filament form test proves the **rules**; it
+does not prove the round trip. That limitation is now written at the call site,
+because the obvious response to a bug like this is to add a test that would not
+have caught it either.
+
 ---
 
 ## A gallery you can actually open, and class photographs sent home · 2026-08-18

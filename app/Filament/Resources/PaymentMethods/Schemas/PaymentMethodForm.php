@@ -87,42 +87,10 @@ final class PaymentMethodForm
                         ->valueLabel('Value')
                         ->addActionLabel('Add another detail')
                         ->helperText(fn (PaymentMethod $record): string => self::requiredKeysHint($record))
-                        // ⚠ THIS IS WHY THE SCREEN WAS UNUSABLE, 2026-08-19.
-                        //
-                        // The required keys are exact snake_case identifiers
-                        // that an adapter looks up — `bank_name`,
-                        // `account_number`. With an empty grid, the operator had
-                        // to TYPE those keys from scratch, spelled precisely, or
-                        // the save was refused naming three fields they had
-                        // never been given a box for. The operator's report was
-                        // that it "brought back an error which looks like the
-                        // data type I had put was invalid", which is exactly
-                        // what guessing an internal contract feels like.
-                        //
-                        // Seeding the rows turns "know our key names" into "fill
-                        // in the blanks". Extra details can still be added, and
-                        // still work as :merge_fields.
-                        ->afterStateHydrated(static function (KeyValue $component, PaymentMethod $record): void {
-                            $state = $component->getState();
-                            $state = is_array($state) ? $state : [];
-
-                            $ordered = [];
-
-                            // Required first, in the adapter's own order, so the
-                            // form reads top to bottom the way somebody copying
-                            // off a bank statement expects.
-                            foreach (self::requiredKeys($record) as $key) {
-                                $ordered[$key] = $state[$key] ?? '';
-                            }
-
-                            foreach ($state as $key => $value) {
-                                if (! array_key_exists($key, $ordered)) {
-                                    $ordered[$key] = $value;
-                                }
-                            }
-
-                            $component->state($ordered);
-                        })
+                        // ⚠ THE ROWS ARE SEEDED IN `EditPaymentMethod::
+                        // mutateFormDataBeforeFill()`, NOT HERE. See that method
+                        // for why — an `afterStateHydrated` callback on this
+                        // field silently blanked everything the operator typed.
                         ->rules([
                             // ⚠ THE RULE ONLY BITES WHEN THE METHOD IS SWITCHED
                             // ON, and that is the correction rather than a
@@ -256,9 +224,15 @@ final class PaymentMethodForm
     }
 
     /**
+     * The account details this method's adapter cannot work without.
+     *
+     * Public because `EditPaymentMethod` seeds these as empty rows before the
+     * form is filled, so the operator never has to type an exact snake_case key
+     * from memory.
+     *
      * @return list<string>
      */
-    private static function requiredKeys(PaymentMethod $record): array
+    public static function requiredKeys(PaymentMethod $record): array
     {
         $resolver = app(PaymentAdapterResolverContract::class);
 
