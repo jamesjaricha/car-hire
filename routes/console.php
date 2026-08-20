@@ -40,3 +40,36 @@ Schedule::command('carhire:expire-bookings')
     ->everyFiveMinutes()
     ->withoutOverlapping()
     ->onOneServer();
+
+/*
+|--------------------------------------------------------------------------
+| Draining the mail queue
+|--------------------------------------------------------------------------
+|
+| ⚠ WITHOUT THIS ENTRY, NO EMAIL IS EVER SENT.
+|
+| The §13 notifications are queued Mailables, so SMTP never blocks a customer
+| pressing "Reserve". But there is no daemonised queue worker on 20i shared
+| hosting — DEPLOYMENT.md is explicit about it — so a queued job sits in the
+| `jobs` table until something runs it. This is that something.
+|
+| The failure mode if it is removed is the nastiest kind: bookings succeed,
+| nothing errors, jobs accumulate silently, and the operator concludes the mail
+| server is broken. `SELECT COUNT(*) FROM jobs` is the check.
+|
+| --stop-when-empty so the process exits rather than becoming a daemon the
+| scheduler cannot manage. --max-time=50 keeps it inside the minute it was
+| started in, so consecutive runs cannot pile up. --tries=3 because a mail
+| server that refuses once often accepts a minute later; after three it goes to
+| `failed_jobs`, where it can be found rather than lost.
+|
+| runInBackground() so a slow mail server cannot delay the expiry sweep, which
+| is the schedule that actually affects what customers can book.
+|
+*/
+
+Schedule::command('queue:work --stop-when-empty --max-time=50 --tries=3')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();

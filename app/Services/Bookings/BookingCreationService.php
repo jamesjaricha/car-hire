@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Bookings;
 
 use App\Contracts\BookingCreationServiceContract;
+use App\Contracts\BookingNotifierContract;
 use App\Contracts\BookingReferenceGeneratorContract;
 use App\Contracts\CustomerResolverContract;
 use App\Contracts\PaymentDeadlineCalculatorContract;
@@ -55,6 +56,7 @@ final class BookingCreationService implements BookingCreationServiceContract
         private readonly VehicleHoldServiceContract $holds,
         private readonly BookingReferenceGeneratorContract $references,
         private readonly PaymentRecordingServiceContract $payments,
+        private readonly BookingNotifierContract $notifier,
     ) {}
 
     public function create(BookingRequest $request): BookingCreationResult
@@ -70,7 +72,7 @@ final class BookingCreationService implements BookingCreationServiceContract
         // transaction, where an unexpected query is harder to see.
         $request->vehicle->loadMissing('vehicleClass');
 
-        return DB::transaction(function () use ($request, $now): BookingCreationResult {
+        $result = DB::transaction(function () use ($request, $now): BookingCreationResult {
             $pickupAt = $request->range->start;
 
             // 1. The payment method is validated HERE, where it is used —
@@ -198,6 +200,26 @@ final class BookingCreationService implements BookingCreationServiceContract
                 hold: $hold,
             );
         }, attempts: 3);
+
+        // ⚠ AFTER THE TRANSACTION, NEVER INSIDE IT.
+        //
+        // Two reasons, and the second is the one that would have hurt.
+        //
+        // `attempts: 3` means this transaction can be retried on a deadlock, so
+        // anything dispatched inside it could go out THREE TIMES for one
+        // booking — three "here is how to pay" emails quoting the same
+        // reference, which reads as a system that has lost track of itself.
+        //
+        // And a rolled-back transaction would have already sent mail about a
+        // booking that does not exist.
+        //
+        // The notifier swallows its own failures by design: the booking is
+        // committed by this point, and a dead mail server must not turn it into
+        // a 500 at the moment the customer is deciding whether to trust us with
+        // a bank transfer. See BookingNotifierContract.
+        $this->notifier->bookingSubmitted($result);
+
+        return $result;
     }
 
     private function assertPickupIsInTheFuture(BookingRequest $request, CarbonImmutable $now): void

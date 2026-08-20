@@ -67,7 +67,51 @@ QUEUE_CONNECTION=database
 
 CARHIRE_DISPLAY_TIMEZONE=Africa/Lusaka
 CARHIRE_CURRENCY=ZMW
+
+# Spec §13 email. SMTP, not IMAP — IMAP (143/993) receives mail, it cannot
+# send it. The host is usually the same name with a different port.
+MAIL_MAILER=smtp
+MAIL_HOST=mail.<domain>
+MAIL_PORT=587
+MAIL_USERNAME=<mailbox@domain>
+MAIL_PASSWORD=<mailbox password>
+MAIL_SCHEME=tls
+MAIL_FROM_ADDRESS=<mailbox@domain>
+MAIL_FROM_NAME="${APP_NAME}"
 ```
+
+### ⚠ Email needs the queue drained, and it is not obvious
+
+The §13 notifications are **queued** Mailables, so SMTP never blocks a customer
+pressing "Reserve". There is no daemonised queue worker on shared hosting, so
+`routes/console.php` schedules `queue:work --stop-when-empty` every minute to
+drain them.
+
+**If that schedule stops, bookings still succeed and no email is ever sent.**
+Nothing errors; jobs simply accumulate. The check:
+
+```bash
+php artisan tinker --execute='echo DB::table("jobs")->count(), PHP_EOL;'
+```
+
+A number that keeps climbing means mail is queued and never delivered. Failed
+sends land in `failed_jobs` after three attempts, where they can be read:
+
+```bash
+php artisan queue:failed
+```
+
+### Proving the mail transport before blaming the application
+
+```bash
+php artisan tinker --execute='Mail::raw("carhire smtp test", fn ($m) => $m->to("you@example.com")->subject("Test"));'
+```
+
+If that throws, the fault is `.env` or the mail host and no amount of
+application debugging will help. If it succeeds and customers still receive
+nothing, look at the `jobs` table above. **Remember `config:clear` after
+editing `.env`** — the config cache is rebuilt on every deploy and will
+otherwise keep serving the old credentials.
 
 Then `php artisan key:generate --force`.
 

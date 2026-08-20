@@ -6,6 +6,7 @@ namespace App\Services\Payments;
 
 use App\Contracts\AuditLoggerContract;
 use App\Contracts\BookingLedgerContract;
+use App\Contracts\BookingNotifierContract;
 use App\Contracts\BookingStateMachineContract;
 use App\Contracts\PaymentConfirmationServiceContract;
 use App\Contracts\SettingsRepositoryContract;
@@ -77,6 +78,7 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
         private readonly SettingsRepositoryContract $settings,
         private readonly BookingLedgerContract $ledger,
         private readonly AuditLoggerContract $audit,
+        private readonly BookingNotifierContract $notifier,
     ) {}
 
     public function confirm(
@@ -102,7 +104,7 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
             throw PaymentNotConfirmableException::notAttributed($payment->payment_reference);
         }
 
-        return DB::transaction(function () use ($actor, $payment, $bookingId, $amountReceived, $notes): PaymentConfirmationResult {
+        $result = DB::transaction(function () use ($actor, $payment, $bookingId, $amountReceived, $notes): PaymentConfirmationResult {
             $booking = Booking::query()->whereKey($bookingId)->lockForUpdate()->first();
 
             if (! $booking instanceof Booking) {
@@ -264,6 +266,18 @@ final class PaymentConfirmationService implements PaymentConfirmationServiceCont
                 overpaidAmount: $overpaid ? Money::subtract($amountPaid, $grandTotal) : Money::ZERO,
             );
         }, attempts: 3);
+
+        // After the commit, for the same two reasons as BookingCreationService:
+        // `attempts: 3` could otherwise send three emails for one confirmation,
+        // and a rolled-back transaction would have told the customer their money
+        // was checked when it was not.
+        //
+        // Sent for part payments as well as full settlement — somebody who has
+        // paid the 50% deposit has done what was asked and needs to know it
+        // arrived, and what is still owed.
+        $this->notifier->paymentConfirmed($result);
+
+        return $result;
     }
 
     /**

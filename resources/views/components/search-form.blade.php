@@ -14,12 +14,36 @@
     $defaultDropoff = $dropoffAt ?? now(config('carhire.display_timezone'))->addDays(4)->setTime(9, 0)->format('Y-m-d\TH:i');
 @endphp
 
+{{--
+| Padding is on the 16/24 tier, not 12/16, and it is a hierarchy decision.
+|--------------------------------------------------------------------------
+|
+| The hero card was `p-3 sm:p-4` — 12px, rising to 16px. On a large white
+| card carrying a heavy shadow that reads as content crowding the edge: the
+| "Collecting from" label began 12px from the corner, and the inputs inside it
+| had no horizontal padding of their own at all, falling back to the forms
+| plugin's 12px.
+|
+| Two rules from the UI guidelines apply. Spacing should follow a 4/8 rhythm
+| with clear tiers by hierarchy — a hero element belongs on 16/24, not on the
+| same tier as a dense list row. And horizontal insets should GROW with the
+| viewport; 12→16 is barely a change across the whole breakpoint range.
+|
+| The compact variant stays on 16 throughout. It appears above search results
+| and on the class page as a secondary control, and giving it the hero's
+| generosity would flatten the difference between "this page is for searching"
+| and "you can adjust your search here".
+--}}
 <form method="GET"
       action="{{ route('search') }}"
-      class="rounded-2xl bg-white p-3 shadow-xl shadow-brand-950/20 sm:p-4">
+      @class([
+          'rounded-2xl bg-white shadow-xl shadow-brand-950/20',
+          'p-4 sm:p-6 lg:p-7' => ! $compact,
+          'p-4 sm:p-5' => $compact,
+      ])>
 
     <div @class([
-        'grid gap-3',
+        'grid gap-4',
         'sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_auto]' => ! $compact,
         'sm:grid-cols-2 lg:grid-cols-4' => $compact,
     ])>
@@ -31,8 +55,11 @@
                     name="branch"
                     @if ($errors->has('branch')) autofocus @endif
                     aria-describedby="{{ $errors->has('branch') ? 'branch_error' : '' }}"
+                    {{-- `pl-4 pr-10`, not `px-4`: a select needs room on the
+                         right for its own chevron, and squaring the padding
+                         would let a long branch name run underneath it. --}}
                     @class([
-                        'mt-1.5 w-full rounded-xl bg-white py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
+                        'mt-2 w-full rounded-xl bg-white py-3 pl-4 pr-10 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
                         'border-ink-300 focus:border-brand-600' => ! $errors->has('branch'),
                         'border-danger-600 focus:border-danger-600' => $errors->has('branch'),
                     ])>
@@ -61,7 +88,7 @@
                    @if ($errors->has('pickup') && ! $errors->has('branch')) autofocus @endif
                    aria-describedby="{{ $errors->has('pickup') ? 'pickup_error' : '' }}"
                    @class([
-                       'mt-1.5 w-full rounded-xl py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
+                       'mt-2 w-full rounded-xl px-4 py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
                        'border-ink-300 focus:border-brand-600' => ! $errors->has('pickup'),
                        'border-danger-600 focus:border-danger-600' => $errors->has('pickup'),
                    ])>
@@ -82,7 +109,7 @@
                    @if ($errors->has('dropoff') && ! $errors->hasAny(['branch', 'pickup'])) autofocus @endif
                    aria-describedby="{{ $errors->has('dropoff') ? 'dropoff_error' : '' }}"
                    @class([
-                       'mt-1.5 w-full rounded-xl py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
+                       'mt-2 w-full rounded-xl px-4 py-3 text-base text-ink-900 shadow-sm focus:ring-2 focus:ring-brand-600/30',
                        'border-ink-300 focus:border-brand-600' => ! $errors->has('dropoff'),
                        'border-danger-600 focus:border-danger-600' => $errors->has('dropoff'),
                    ])>

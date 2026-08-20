@@ -11,6 +11,7 @@ use App\Contracts\BookingCancellationServiceContract;
 use App\Contracts\BookingCreationServiceContract;
 use App\Contracts\BookingExpiryServiceContract;
 use App\Contracts\BookingLedgerContract;
+use App\Contracts\BookingNotifierContract;
 use App\Contracts\BookingReferenceGeneratorContract;
 use App\Contracts\BookingStateMachineContract;
 use App\Contracts\CounterPaymentServiceContract;
@@ -43,6 +44,7 @@ use App\Services\Bookings\BookingStateMachine;
 use App\Services\Customers\CustomerResolver;
 use App\Services\Customers\PhoneNormaliser;
 use App\Services\Holds\VehicleHoldService;
+use App\Services\Notifications\BookingNotifier;
 use App\Services\Payments\CounterPaymentService;
 use App\Services\Payments\PaymentAdapterResolver;
 use App\Services\Payments\PaymentConfirmationService;
@@ -82,6 +84,7 @@ final class AppServiceProvider extends ServiceProvider
         // The single owner of "how much has this booking been paid". Two
         // services write that figure; only this one works it out.
         $this->app->singleton(BookingLedgerContract::class, BookingLedger::class);
+        $this->app->singleton(BookingNotifierContract::class, BookingNotifier::class);
         $this->app->singleton(BookingReferenceGeneratorContract::class, BookingReferenceGenerator::class);
         $this->app->singleton(PaymentAdapterResolverContract::class, PaymentAdapterResolver::class);
         $this->app->singleton(CounterPaymentServiceContract::class, CounterPaymentService::class);
